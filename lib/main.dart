@@ -14,21 +14,31 @@ class MyApp extends StatelessWidget {
       title: 'Lumiora Home',
       theme: ThemeData(
         fontFamily: 'Sans-Serif',
-        scaffoldBackgroundColor: const Color(0xFFF4F1E1), // Light beige background
-        primaryColor: const Color(0xFF7B8C2A), // Olive green
+        scaffoldBackgroundColor: const Color(0xFFEBE5D9), // Menyesuaikan warna background figma
+        primaryColor: const Color(0xFF7B8C2A),
       ),
       home: const HomeScreen(),
     );
   }
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  // Warna Utama
   final Color primaryGreen = const Color(0xFF7B8C2A);
   final Color lightGreenCard = const Color(0xFFDCE2B9);
   final Color darkGrey = const Color(0xFF4A4D4A);
   final Color textDark = const Color(0xFF2C3028);
+
+  // Fungsionalitas State
+  int _bottomNavIndex = 0; // 0: Home, 1: Menu, 2: History, 3: Profile
+  bool _isTrioActive = true; // True jika Trio dipilih, False jika Duo dipilih
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +63,7 @@ class HomeScreen extends StatelessWidget {
                   _buildGrandFeastBanner(),
                   const SizedBox(height: 20),
                   _buildHalalFooter(),
-                  const SizedBox(height: 40), // Bottom padding
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
@@ -66,7 +76,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // --- Widget Builders ---
+  // --- WIDGET BUILDERS ---
 
   Widget _buildHeroAndHeader() {
     return Stack(
@@ -74,19 +84,19 @@ class HomeScreen extends StatelessWidget {
       children: [
         Column(
           children: [
-            // Top Hero Image Placeholder
+            // TODO: GANTI DENGAN GAMBAR HERO KOPI
+            // Gunakan Image.asset('assets/hero_kopi.png', fit: BoxFit.cover) jika sudah ada gambar
             Container(
-              height: 240,
+              height: 220,
               width: double.infinity,
               decoration: const BoxDecoration(
                 color: Color(0xFFE8DCC4),
                 image: DecorationImage(
-                  image: NetworkImage('https://via.placeholder.com/600x400/E8DCC4/888888?text=Coffee+Hero+Image'),
+                  image: NetworkImage('https://via.placeholder.com/600x400/E8DCC4/888888?text=Hero+Image+(3+Gelas+Kopi)'),
                   fit: BoxFit.cover,
                 ),
               ),
             ),
-            // Green Header Bar
             Container(
               height: 90,
               width: double.infinity,
@@ -116,17 +126,17 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
-        // Overlapping Round Logo
+        // TODO: GANTI DENGAN GAMBAR LOGO LUMIORA
         Positioned(
           right: 16,
-          top: 180, // Adjust this to sit right on the seam
+          top: 170, 
           child: Container(
-            width: 100,
-            height: 100,
+            width: 90,
+            height: 90,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: const Color(0xFFF4F1E1),
               shape: BoxShape.circle,
-              border: Border.all(color: primaryGreen, width: 4),
+              border: Border.all(color: primaryGreen, width: 3),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
@@ -139,7 +149,7 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.coffee, color: primaryGreen, size: 24),
+                  Icon(Icons.coffee, color: primaryGreen, size: 24), // Ganti ini dengan Image.asset logo asli
                   const SizedBox(height: 4),
                   Text(
                     'LUMIORA',
@@ -164,7 +174,7 @@ class HomeScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         children: [
@@ -192,30 +202,35 @@ class HomeScreen extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Container(
-            height: 110,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: primaryGreen, width: 2),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.coffee, size: 40, color: primaryGreen),
-                const SizedBox(height: 8),
-                Text(
-                  'Pick Up',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: textDark),
-                ),
-              ],
+          child: InkWell(
+            onTap: () {
+              // Aksi saat Pick Up diklik
+            },
+            child: Container(
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: primaryGreen, width: 1.5),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.local_cafe, size: 40, color: primaryGreen),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pick Up',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: textDark),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: Container(
-            height: 110,
+            height: 100,
             decoration: BoxDecoration(
               color: darkGrey,
               borderRadius: BorderRadius.circular(16),
@@ -223,11 +238,11 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.delivery_dining, size: 40, color: Colors.white38),
-                const SizedBox(height: 8),
+                const Icon(Icons.delivery_dining, size: 36, color: Colors.white38),
+                const SizedBox(height: 4),
                 const Text(
                   'COMING SOON',
-                  style: TextStyle(fontSize: 10, color: Colors.white),
+                  style: TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.bold),
                 ),
                 const Text(
                   'Delivery',
@@ -245,7 +260,7 @@ class HomeScreen extends StatelessWidget {
     return Column(
       children: [
         Container(
-          height: 90,
+          height: 85,
           decoration: BoxDecoration(
             color: primaryGreen,
             borderRadius: BorderRadius.circular(12),
@@ -253,31 +268,45 @@ class HomeScreen extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
+                flex: 3,
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.only(left: 16.0, top: 16.0, bottom: 16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Text(
-                        'New Bonus Unlock',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                        'New Bonus\nUnlock',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, height: 1.1),
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         'First time buyer bonus.',
-                        style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10),
+                        style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 10),
                       ),
                     ],
                   ),
                 ),
               ),
-              Container(width: 120, color: Colors.white24), // Placeholder for image
+              // TODO: GANTI DENGAN GAMBAR ROTI/CROISSANT
+              Expanded(
+                flex: 2,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.horizontal(right: Radius.circular(12)),
+                    image: DecorationImage(
+                      image: NetworkImage('https://via.placeholder.com/150x100/7B8C2A/FFFFFF?text=Roti'),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         Container(
-          height: 90,
+          height: 85,
           decoration: BoxDecoration(
             color: lightGreenCard,
             borderRadius: BorderRadius.circular(12),
@@ -285,25 +314,40 @@ class HomeScreen extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
+                flex: 3,
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.only(left: 16.0, top: 16.0, bottom: 16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Brew Stamp Card',
-                        style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold, fontSize: 16),
+                        'Brew Stamp\nCard',
+                        style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold, fontSize: 16, height: 1.1),
                       ),
+                      const SizedBox(height: 4),
                       Text(
-                        'Collect 9 stamps, Get 10th cup for free!',
-                        style: TextStyle(color: primaryGreen.withOpacity(0.8), fontSize: 10),
+                        'Collect 9 stamps, Get\n10th cup for free!',
+                        style: TextStyle(color: primaryGreen, fontSize: 10),
                       ),
                     ],
                   ),
                 ),
               ),
-              Container(width: 140, color: Colors.black12), // Placeholder for stamp card graphic
+              // TODO: GANTI DENGAN GAMBAR KARTU STEMPEL
+              Expanded(
+                flex: 2,
+                child: Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white54,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(
+                    child: Text('Gambar\nStamp', textAlign: TextAlign.center, style: TextStyle(fontSize: 10)),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -321,21 +365,51 @@ class HomeScreen extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+          // Tombol Duo
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isTrioActive = false; // Ubah state ke Duo
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+              decoration: BoxDecoration(
+                color: !_isTrioActive ? primaryGreen : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                'Duo', 
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  color: !_isTrioActive ? Colors.white : Colors.black54
+                )
+              ),
             ),
-            child: const Text('Duo', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            decoration: BoxDecoration(
-              color: primaryGreen,
-              borderRadius: BorderRadius.circular(16),
+          // Tombol Trio
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isTrioActive = true; // Ubah state ke Trio
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+              decoration: BoxDecoration(
+                color: _isTrioActive ? primaryGreen : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                'Trio', 
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  color: _isTrioActive ? Colors.white : Colors.black54
+                )
+              ),
             ),
-            child: const Text('Trio', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
           ),
         ],
       ),
@@ -343,11 +417,12 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildProductGrid() {
+    // Data produk (Bisa diganti sesuai dengan Duo atau Trio kedepannya)
     final products = [
-      {'title': 'Trio Cafe', 'desc': 'Triple the drinks.\nTriple the fun.', 'price': 'Rp 50.000'},
-      {'title': 'Triple Brew', 'desc': 'Matcha, Choco, and\nCoffee', 'price': 'Rp 55.000'},
-      {'title': 'Coffee Splash', 'desc': 'Peppermint, Latte, and\nCaramel Macchiato', 'price': 'Rp 60.000'},
-      {'title': 'Brunch Deals', 'desc': 'Red Velvet, Cappuccino,\nand Cake', 'price': 'Rp 80.000'},
+      {'title': 'Trio Cafe', 'desc': 'Triple the drinks.\nTriple the fun.', 'price': 'Rp 50.000', 'rating': '5.0'},
+      {'title': 'Triple Brew', 'desc': 'Matcha, Choco, and\nCoffee', 'price': 'Rp 55.000', 'rating': '5.0'},
+      {'title': 'Coffee Splash', 'desc': 'Peppermint, Latte,\nand Macchiato', 'price': 'Rp 60.000', 'rating': '4.8'},
+      {'title': 'Brunch Deals', 'desc': 'Red Velvet, Cappuccino,\nand Cake', 'price': 'Rp 80.000', 'rating': '4.9'},
     ];
 
     return GridView.builder(
@@ -357,7 +432,7 @@ class HomeScreen extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.4, // Adjust for card proportions
+        childAspectRatio: 1.3,
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {
@@ -365,34 +440,50 @@ class HomeScreen extends StatelessWidget {
         return Container(
           decoration: BoxDecoration(
             color: lightGreenCard,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           padding: const EdgeInsets.all(12),
-          child: Row(
+          child: Stack(
             children: [
-              // Placeholder for product image (left side)
-              Container(width: 50, color: Colors.black12), 
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      product['title']!,
-                      style: TextStyle(fontWeight: FontWeight.bold, color: primaryGreen, fontSize: 12),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      product['desc']!,
-                      style: TextStyle(fontSize: 8, color: primaryGreen.withOpacity(0.8)),
-                    ),
-                    const Spacer(),
-                    Text(
-                      product['price']!,
-                      style: TextStyle(fontWeight: FontWeight.bold, color: textDark, fontSize: 10),
-                    ),
-                  ],
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.star, size: 10, color: primaryGreen),
+                      const SizedBox(width: 2),
+                      Text(product['rating']!, style: TextStyle(fontSize: 10, color: primaryGreen, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    product['title']!,
+                    style: TextStyle(fontWeight: FontWeight.bold, color: primaryGreen, fontSize: 13),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    product['desc']!,
+                    style: TextStyle(fontSize: 9, color: primaryGreen, height: 1.2),
+                  ),
+                  const Spacer(),
+                  Text(
+                    product['price']!,
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 11),
+                  ),
+                ],
+              ),
+              // TODO: GANTI DENGAN GAMBAR PRODUK 
+              Positioned(
+                right: -10,
+                bottom: -10,
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white54,
+                  ),
+                  child: const Center(child: Text('Img', style: TextStyle(fontSize: 10))),
                 ),
               ),
             ],
@@ -404,17 +495,17 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildGrandFeastBanner() {
     return Container(
-      height: 160,
+      height: 140,
       width: double.infinity,
       decoration: BoxDecoration(
         color: primaryGreen,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Stack(
         children: [
           Positioned(
             left: 16,
-            top: 24,
+            top: 20,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -422,47 +513,50 @@ class HomeScreen extends StatelessWidget {
                   'Grand\nFeast',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: FontWeight.bold,
                     height: 1.1,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 const Text(
                   'The Ultimate\nSharing Combo\nfor Everyone',
-                  style: TextStyle(color: Colors.white, fontSize: 12),
+                  style: TextStyle(color: Colors.white, fontSize: 10, height: 1.2),
                 ),
                 const SizedBox(height: 8),
                 Row(
-                  children: [
-                    const Text(
+                  children: const [
+                    Text(
                       'Rp 120.000',
                       style: TextStyle(
-                        color: Colors.white54,
+                        color: Colors.white70,
                         decoration: TextDecoration.lineThrough,
                         fontSize: 10,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    const Text(
+                    SizedBox(width: 6),
+                    Text(
                       'Rp 105.000',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ],
                 ),
               ],
             ),
           ),
-          // Placeholder for the large feast image on the right
+          // TODO: GANTI DENGAN GAMBAR GRAND FEAST KUE & KOPI
           Positioned(
             right: 0,
             bottom: 0,
             top: 0,
             child: Container(
-              width: 180,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
+              width: 160,
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.horizontal(right: Radius.circular(16)),
+                image: DecorationImage(
+                  image: NetworkImage('https://via.placeholder.com/200x150/7B8C2A/FFFFFF?text=Feast+Image'),
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
           ),
@@ -474,21 +568,30 @@ class HomeScreen extends StatelessWidget {
   Widget _buildHalalFooter() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(
         color: lightGreenCard,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.mosque_outlined, size: 40, color: Colors.white),
+            // TODO: GANTI DENGAN LOGO HALAL RESMI
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(Icons.mosque_outlined, size: 30, color: Colors.white),
+            ),
             const SizedBox(height: 8),
             const Text(
               'HALAL\nINDONESIA',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, height: 1.1),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, height: 1.1),
             ),
+            const SizedBox(height: 4),
             const Text(
               'ID 3411000101108',
               style: TextStyle(color: Colors.white, fontSize: 10),
@@ -499,24 +602,30 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // --- Bottom Navigation & FAB ---
+  // --- BOTTOM NAVIGATION & FAB ---
 
   Widget _buildFAB() {
     return Container(
       height: 70,
       width: 70,
       margin: const EdgeInsets.only(top: 30),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFFEBE5D9), width: 4), // Border menyerupai figma
+      ),
       child: FloatingActionButton(
         backgroundColor: primaryGreen,
-        elevation: 0,
+        elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(35)),
-        onPressed: () {},
+        onPressed: () {
+          // Aksi scan QR
+        },
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            Icon(Icons.qr_code_scanner, color: Colors.white),
+            Icon(Icons.qr_code_scanner, color: Colors.white, size: 24),
             SizedBox(height: 2),
-            Text('SCAN QR', style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold)),
+            Text('SCAN QR', style: TextStyle(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -526,37 +635,48 @@ class HomeScreen extends StatelessWidget {
   Widget _buildBottomNav() {
     return BottomAppBar(
       shape: const CircularNotchedRectangle(),
-      notchMargin: 8.0,
-      color: const Color(0xFFEBE6D6), // Matches the bottom bar color in the image
+      notchMargin: 6.0,
+      color: const Color(0xFFEBE5D9),
+      elevation: 10,
       child: SizedBox(
-        height: 60,
+        height: 65,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _buildNavItem(Icons.home, 'Home', true),
-            _buildNavItem(Icons.coffee, 'Menu', false),
-            const SizedBox(width: 48), // Space for FAB
-            _buildNavItem(Icons.receipt_long, 'History', false),
-            _buildNavItem(Icons.person, 'Profile', false),
+            _buildNavItem(Icons.home_filled, 'Home', 0),
+            _buildNavItem(Icons.local_cafe, 'Menu', 1),
+            const SizedBox(width: 48), // Ruang kosong untuk FAB di tengah
+            _buildNavItem(Icons.receipt_long, 'History', 2),
+            _buildNavItem(Icons.person, 'Profile', 3),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isActive) {
-    final color = isActive ? primaryGreen : Colors.grey;
+  Widget _buildNavItem(IconData icon, String label, int index) {
+    final isActive = _bottomNavIndex == index;
+    final color = isActive ? primaryGreen : Colors.grey.shade500;
+    
     return Expanded(
       child: InkWell(
-        onTap: () {},
+        onTap: () {
+          setState(() {
+            _bottomNavIndex = index; // Pindah tab state
+          });
+        },
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color),
+            Icon(icon, color: color, size: 24),
             const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(fontSize: 10, color: color, fontWeight: isActive ? FontWeight.bold : FontWeight.normal),
+              style: TextStyle(
+                fontSize: 10, 
+                color: color, 
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal
+              ),
             ),
           ],
         ),
