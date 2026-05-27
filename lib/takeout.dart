@@ -67,13 +67,29 @@ class TakeoutPage extends StatelessWidget {
     ),
   );
 
-  Widget _itemRow(String name, String price) => Container(
+  Widget _itemRow(String name, String price) {
+  // Cek kecocokan gambar item belanjaan kamu
+  String itemImg = 'assets/images/prod_coffee_splash.png'; 
+  if (name.contains("Croissant")) {
+    itemImg = 'assets/images/crossait(new_bonus_unlock).png'; // Mengikuti nama file persis milikmu
+  }
+
+  return Container(
     margin: const EdgeInsets.only(bottom: 8),
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
     child: Row(
       children: [
-        Container(width: 40, height: 40, color: lightGreenCard),
+        // UPDATE DI SINI: Mengubah kotak warna menjadi gambar produk asli
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.asset(
+            itemImg,
+            width: 40,
+            height: 40,
+            fit: BoxFit.cover,
+          ),
+        ),
         const SizedBox(width: 12),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -84,14 +100,39 @@ class TakeoutPage extends StatelessWidget {
       ],
     ),
   );
+}
 
-  Widget _stampSection() => const Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: [
-      Text("Stamp Collection", style: TextStyle(fontWeight: FontWeight.bold)),
-      Text("Will get 2 Stamps", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-    ],
-  );
+  Widget _stampSection() => Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text("Stamp Collection", style: TextStyle(fontWeight: FontWeight.bold)),
+        Text("Will get 2 Stamps", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold)),
+      ],
+    ),
+    const SizedBox(height: 10),
+    // MENAMBAHKAN BARISAN MATRIKS STAMP MINI SESUAI FIGMA CHECKOUT
+    Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: List.generate(5, (index) {
+          return Image.asset(
+            'assets/images/stamp.png', // Memanggil file stamp.png milikmu
+            width: 28,
+            height: 28,
+          );
+        }),
+      ),
+    ),
+  ],
+);
 
   Widget _paymentDetails() => Column(
     children: [

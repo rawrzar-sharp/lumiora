@@ -84,15 +84,13 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Column(
           children: [
-            // TODO: GANTI DENGAN GAMBAR HERO KOPI
-            // Gunakan Image.asset('assets/hero_kopi.png', fit: BoxFit.cover) jika sudah ada gambar
             Container(
               height: 220,
               width: double.infinity,
               decoration: const BoxDecoration(
                 color: Color(0xFFE8DCC4),
                 image: DecorationImage(
-                  image: NetworkImage('https://via.placeholder.com/600x400/E8DCC4/888888?text=Hero+Image+(3+Gelas+Kopi)'),
+                  image: AssetImage('assets/images/hero_coffee_splash.png'), // MENGGUNAKAN FILE KAMU
                   fit: BoxFit.cover,
                 ),
               ),
@@ -145,11 +143,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+            // GANTI POTONGAN KODE DI DALAM CENTER LOGO BULAT:
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.coffee, color: primaryGreen, size: 24), // Ganti ini dengan Image.asset logo asli
+                  // Ganti Icon lama dengan baris ini:
+                  Image.asset(
+                    'assets/images/logo_lumiora.png',
+                    width: 40,
+                    height: 40,
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     'LUMIORA',
@@ -256,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPromoBanners() {
+    Widget _buildPromoBanners() {
     return Column(
       children: [
         Container(
@@ -288,14 +292,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              // TODO: GANTI DENGAN GAMBAR ROTI/CROISSANT
-              Expanded(
+                Expanded(
                 flex: 2,
                 child: Container(
                   decoration: const BoxDecoration(
                     borderRadius: BorderRadius.horizontal(right: Radius.circular(12)),
                     image: DecorationImage(
-                      image: NetworkImage('https://via.placeholder.com/150x100/7B8C2A/FFFFFF?text=Roti'),
+                      image: AssetImage('assets/images/banner_bonus_unlock.png'),
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -304,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 12),
+          const SizedBox(height: 12),
         Container(
           height: 85,
           decoration: BoxDecoration(
@@ -334,26 +337,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              // TODO: GANTI DENGAN GAMBAR KARTU STEMPEL
               Expanded(
-                flex: 2,
-                child: Container(
-                  margin: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white54,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Center(
-                    child: Text('Gambar\nStamp', textAlign: TextAlign.center, style: TextStyle(fontSize: 10)),
+              flex: 2,
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white54,
+                  borderRadius: BorderRadius.circular(8),
+                  image: const DecorationImage(
+                    image: AssetImage('assets/images/stamp.png'),
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
+
 
   Widget _buildToggle() {
     return Container(
@@ -380,9 +384,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                'Duo', 
+                'Duo',
                 style: TextStyle(
-                  fontWeight: FontWeight.bold, 
+                  fontWeight: FontWeight.bold,
                   color: !_isTrioActive ? Colors.white : Colors.black54
                 )
               ),
@@ -403,9 +407,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                'Trio', 
+                'Trio',
                 style: TextStyle(
-                  fontWeight: FontWeight.bold, 
+                  fontWeight: FontWeight.bold,
                   color: _isTrioActive ? Colors.white : Colors.black54
                 )
               ),
@@ -416,27 +420,32 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildProductGrid() {
-    // Data produk (Bisa diganti sesuai dengan Duo atau Trio kedepannya)
-    final products = [
-      {'title': 'Trio Cafe', 'desc': 'Triple the drinks.\nTriple the fun.', 'price': 'Rp 50.000', 'rating': '5.0'},
-      {'title': 'Triple Brew', 'desc': 'Matcha, Choco, and\nCoffee', 'price': 'Rp 55.000', 'rating': '5.0'},
-      {'title': 'Coffee Splash', 'desc': 'Peppermint, Latte,\nand Macchiato', 'price': 'Rp 60.000', 'rating': '4.8'},
-      {'title': 'Brunch Deals', 'desc': 'Red Velvet, Cappuccino,\nand Cake', 'price': 'Rp 80.000', 'rating': '4.9'},
-    ];
+Widget _buildProductGrid() {
+  final products = [
+    {'title': 'Trio Cafe', 'desc': 'Triple the drinks.\nTriple the fun.', 'price': 'Rp 50.000', 'rating': '5.0'},
+    {'title': 'Triple Brew', 'desc': 'Matcha, Choco, and\nCoffee', 'price': 'Rp 55.000', 'rating': '5.0'},
+    {'title': 'Coffee Splash', 'desc': 'Peppermint, Latte,\nand Macchiato', 'price': 'Rp 60.000', 'rating': '4.8'},
+    {'title': 'Brunch Deals', 'desc': 'Red Velvet, Cappuccino,\nand Cake', 'price': 'Rp 80.000', 'rating': '4.9'},
+  ];
 
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.3,
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
+  return GridView.builder(
+    physics: const NeverScrollableScrollPhysics(),
+    shrinkWrap: true,
+    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 2,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.3,
+    ),
+    itemCount: products.length,
+    itemBuilder: (context, index) {
+      final product = products[index];
+        // LOGIKA PENYESUAIAN GAMBAR SESUAI KATA KUNCI PRODUK
+        String imgPath = 'assets/images/prod_trio_cafe.png';
+        if (product['title'] == 'Triple Brew') imgPath = 'assets/images/prod_triple_brew.png';
+        if (product['title'] == 'Coffee Splash') imgPath = 'assets/images/prod_coffee_splash.png';
+        if (product['title'] == 'Brunch Deals') imgPath = 'assets/images/prod_brunch_deals.png';
+
         return Container(
           decoration: BoxDecoration(
             color: lightGreenCard,
@@ -472,18 +481,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              // TODO: GANTI DENGAN GAMBAR PRODUK 
+              // UPDATE DI SINI: Mengganti lingkaran teks 'Img' dengan Asset Gambar Produk asli
               Positioned(
                 right: -10,
                 bottom: -10,
-                child: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white54,
-                  ),
-                  child: const Center(child: Text('Img', style: TextStyle(fontSize: 10))),
+                child: SizedBox(
+                  width: 65,
+                  height: 65,
+                  child: Image.asset(imgPath, fit: BoxFit.contain),
                 ),
               ),
             ],
@@ -544,8 +549,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          // TODO: GANTI DENGAN GAMBAR GRAND FEAST KUE & KOPI
-          Positioned(
+            Positioned(
             right: 0,
             bottom: 0,
             top: 0,
@@ -554,7 +558,7 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: const BoxDecoration(
                 borderRadius: BorderRadius.horizontal(right: Radius.circular(16)),
                 image: DecorationImage(
-                  image: NetworkImage('https://via.placeholder.com/200x150/7B8C2A/FFFFFF?text=Feast+Image'),
+                  image: AssetImage('assets/images/banner_grand_feast.png'),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -657,7 +661,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildNavItem(IconData icon, String label, int index) {
     final isActive = _bottomNavIndex == index;
     final color = isActive ? primaryGreen : Colors.grey.shade500;
-    
     return Expanded(
       child: InkWell(
         onTap: () {
@@ -673,8 +676,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               label,
               style: TextStyle(
-                fontSize: 10, 
-                color: color, 
+                fontSize: 10,
+                color: color,
                 fontWeight: isActive ? FontWeight.bold : FontWeight.normal
               ),
             ),
