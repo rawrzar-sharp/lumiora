@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'takeout.dart'; // <-- ADDED: Importing the takeout page
+import 'takeout.dart'; 
 
 void main() {
   runApp(const MyApp());
@@ -39,7 +39,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   int _bottomNavIndex = 0;
   bool _isTrioActive = true;
 
-  // Data for Trio Menu
   final List<Map<String, String>> trioProducts = [
     {'title': 'Trio Cafe', 'desc': 'Triple the drinks.\nTriple the fun.', 'price': 'Rp 50.000', 'rating': '5.0', 'img': 'assets/images/prod_trio_cafe.png'},
     {'title': 'Triple Brew', 'desc': 'Matcha, Choco, and\nCoffee', 'price': 'Rp 65.000', 'rating': '5.0', 'img': 'assets/images/prod_triple_brew.png'},
@@ -47,7 +46,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     {'title': 'Brunch Deals', 'desc': 'Vanilla latte, Cappuccino,\nand Sando', 'price': 'Rp 45.000', 'rating': '5.0', 'img': 'assets/images/prod_brunch_deals.png'},
   ];
 
-  // Data for Duo Menu
   final List<Map<String, String>> duoProducts = [
     {'title': 'Duo Boost', 'desc': 'Double Espresso & \nAmericano', 'price': 'Rp 35.000', 'rating': '4.8', 'img': 'assets/images/prod_coffee_splash.png'},
     {'title': 'Sweet Pair', 'desc': 'Mocha & Caramel \nMacchiato', 'price': 'Rp 40.000', 'rating': '4.9', 'img': 'assets/images/prod_triple_brew.png'},
@@ -87,7 +85,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   const SizedBox(height: 20),
                   _buildProductGrid(),
                   const SizedBox(height: 20),
-                  _buildGrandFeastBanner(),
+                  _buildGrandFeastBanner(), // Fungsi Banner ter-update di bawah
                   const SizedBox(height: 20),
                   _buildHalalFooter(),
                   const SizedBox(height: 40),
@@ -103,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-Widget _buildHeroAndHeader() {
+  Widget _buildHeroAndHeader() {
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -121,10 +119,9 @@ Widget _buildHeroAndHeader() {
               ),
             ),
             Container(
-              height: 100, // 💡 FIX: Increased from 90 to 100
+              height: 100, 
               width: double.infinity,
               color: primaryGreen,
-              // 💡 FIX: Changed vertical padding from 12.0 to 8.0 to give contents breathing room
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +130,7 @@ Widget _buildHeroAndHeader() {
                     'Hello, Rafdah!',
                     style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: 0.5),
                   ),
-                  const SizedBox(height: 6), // 💡 OPTIONAL: Reduced from 10 to 6
+                  const SizedBox(height: 6), 
                   Row(
                     children: [
                       _buildStatBadge(Icons.workspace_premium, '123', 'Stamps'),
@@ -208,7 +205,6 @@ Widget _buildHeroAndHeader() {
         Expanded(
           child: HoverBounceWrapper(
             onTap: () {
-              // <-- ADDED: Temporary connection to Takeout Page
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const TakeoutPage()),
@@ -295,209 +291,153 @@ Widget _buildHeroAndHeader() {
 
   Widget _buildProductGrid() {
     final products = _isTrioActive ? trioProducts : duoProducts;
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 400),
-      transitionBuilder: (Widget child, Animation<double> animation) {
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween<Offset>(begin: const Offset(0.0, 0.1), end: Offset.zero).animate(animation),
-            child: child,
+    return GridView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.35,
+      ),
+      itemCount: products.length,
+      itemBuilder: (context, index) {
+        final product = products[index];
+        return HoverBounceWrapper(
+          onTap: () {},
+          child: Container(
+            decoration: BoxDecoration(color: lightGreenCard, borderRadius: BorderRadius.circular(20)),
+            padding: const EdgeInsets.all(12),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.star, size: 12, color: primaryGreen),
+                        const SizedBox(width: 2),
+                        Text(product['rating']!, style: TextStyle(fontSize: 10, color: primaryGreen, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(product['title']!, style: TextStyle(fontWeight: FontWeight.w900, color: primaryGreen, fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text(product['desc']!, style: TextStyle(fontSize: 9, color: primaryGreen, height: 1.2)),
+                    const Spacer(),
+                    Text(product['price']!, style: TextStyle(fontWeight: FontWeight.w500, color: textDark, fontSize: 12)),
+                  ],
+                ),
+                Positioned(
+                  right: -15, bottom: -15,
+                  child: SizedBox(
+                    width: 85, height: 85,
+                    child: Image.asset(product['img']!, fit: BoxFit.contain, errorBuilder: (context, error, stackTrace) => const Icon(Icons.fastfood, size: 40, color: Colors.white54)),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
-      child: GridView.builder(
-        key: ValueKey<bool>(_isTrioActive), 
-        physics: const NeverScrollableScrollPhysics(),
-        shrinkWrap: true,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.35,
-        ),
-        itemCount: products.length,
-        itemBuilder: (context, index) {
-          final product = products[index];
-          return HoverBounceWrapper(
-            onTap: () {
-              // Note: You can paste the Navigator.push code here too if you want the items to open the page!
-            },
-            child: Container(
-              decoration: BoxDecoration(color: lightGreenCard, borderRadius: BorderRadius.circular(20)),
-              padding: const EdgeInsets.all(12),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.star, size: 12, color: primaryGreen),
-                          const SizedBox(width: 2),
-                          Text(product['rating']!, style: TextStyle(fontSize: 10, color: primaryGreen, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(product['title']!, style: TextStyle(fontWeight: FontWeight.w900, color: primaryGreen, fontSize: 16)),
-                      const SizedBox(height: 2),
-                      Text(product['desc']!, style: TextStyle(fontSize: 9, color: primaryGreen, height: 1.2)),
-                      const Spacer(),
-                      Text(product['price']!, style: TextStyle(fontWeight: FontWeight.w500, color: textDark, fontSize: 12)),
-                    ],
-                  ),
-                  Positioned(
-                    right: -15, bottom: -15,
-                    child: SizedBox(
-                      width: 85, height: 85,
-                      child: Image.asset(product['img']!, fit: BoxFit.contain, errorBuilder: (context, error, stackTrace) => const Icon(Icons.fastfood, size: 40, color: Colors.white54)),
-                    ),
-                  ),
-                  Positioned(
-                    right: -5, top: -5,
-                    child: Icon(Icons.eco, size: 30, color: primaryGreen.withOpacity(0.2)),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
     );
   }
 
+  // 💡 FIX BUG #6 (B): Mengubah UI Grand Feast Banner agar memuat aset gambar produk di sisi kanan
   Widget _buildGrandFeastBanner() {
-    return HoverBounceWrapper(
-      onTap: () {},
-      child: Container(
-        height: 160, width: double.infinity,
-        decoration: BoxDecoration(
-          color: const Color(0xFFE8DCC4),
-          borderRadius: BorderRadius.circular(16),
-          image: const DecorationImage(image: AssetImage('assets/images/banner_grand_feast.png'), fit: BoxFit.cover),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              left: 16, top: 20,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Grand\nFeast', style: TextStyle(color: primaryGreen, fontSize: 32, fontFamily: 'serif', fontWeight: FontWeight.bold, height: 1.0)),
-                  const SizedBox(height: 8),
-                  const Text('The Ultimate\nSharing Combo\nfor Everyone', style: TextStyle(color: Colors.black87, fontSize: 12, height: 1.2)),
-                  const SizedBox(height: 12),
-                  const Text('Rp 150.000', style: TextStyle(color: Colors.red, decoration: TextDecoration.lineThrough, fontSize: 10, fontWeight: FontWeight.bold)),
-                  const Text('Rp 105.000', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
-                ],
-              ),
-            ),
-          ],
+  return HoverBounceWrapper(
+    onTap: () {},
+    child: Container(
+      height: 160, width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8DCC4),
+        borderRadius: BorderRadius.circular(16),
+        image: const DecorationImage(
+          image: AssetImage('assets/images/banner_grand_feast.png'),
+          fit: BoxFit.cover,
         ),
       ),
-    );
-  }
+      child: Stack(
+        children: [
+          Positioned(
+            left: 16, top: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Grand\nFeast', style: TextStyle(color: primaryGreen, fontSize: 32, fontFamily: 'serif', fontWeight: FontWeight.bold, height: 1.0)),
+                const SizedBox(height: 8),
+                const Text('The Ultimate\nSharing Combo\nfor Everyone', style: TextStyle(color: Colors.black87, fontSize: 12, height: 1.2)),
+                const SizedBox(height: 12),
+                const Text('Rp 150.000', style: TextStyle(color: Colors.red, decoration: TextDecoration.lineThrough, fontSize: 10, fontWeight: FontWeight.bold)),
+                const Text('Rp 105.000', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
+              ],
+            ),
+          ),
+          // 💡 TAMBAH: gambar produk besar di sebelah kanan
+          Positioned(
+            right: 8, bottom: 0, top: 0,
+            child: Image.asset(
+              'assets/images/grand_feast.png',
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _buildHalalFooter() {
-    return HoverBounceWrapper(
-      onTap: () {},
-      child: Container(
-        width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 24),
-        decoration: BoxDecoration(color: lightGreenCard, borderRadius: BorderRadius.circular(16)),
-        child: Center(
-          child: Column(
-            children: [
-              Container(
-                width: 50, height: 50,
-                decoration: const BoxDecoration(
-                  image: DecorationImage(image: AssetImage('assets/images/logo_halal_indonesia.png'), fit: BoxFit.contain),
-                ),
-              ),
-              const Text('HALAL\nINDONESIA', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 20, height: 1.1)),
-              const SizedBox(height: 4),
-              const Text('ID241103130106', style: TextStyle(color: Colors.white, fontSize: 12, letterSpacing: 1.0))
-            ],
-          ),
-        ),
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.verified, color: primaryGreen, size: 16),
+        const SizedBox(width: 4),
+        const Text("100% Certified Halal & Higienis", style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 
   Widget _buildFAB() {
-    return Container(
-      height: 85, width: 85,
-      margin: const EdgeInsets.only(top: 20),
-      decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFEBE5D9)),
-      child: Center(
-        child: HoverBounceWrapper(
-          onTap: () {},
-          child: Container(
-            width: 65, height: 65,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: primaryGreen),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(Icons.qr_code_2, color: Colors.white, size: 28),
-                SizedBox(height: 2),
-                Text('SCAN QR', style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return FloatingActionButton(
+      onPressed: () {},
+      backgroundColor: primaryGreen,
+      shape: const CircleBorder(),
+      child: const Icon(Icons.qr_code_scanner, color: Colors.white),
     );
   }
 
   Widget _buildBottomNav() {
     return BottomAppBar(
       shape: const CircularNotchedRectangle(),
-      notchMargin: 8.0,
-      color: const Color(0xFFEBE5D9),
-      elevation: 10,
+      notchMargin: 8,
       child: SizedBox(
-        height: 65,
+        height: 60,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(Icons.home_filled, 'Home', 0),
-            _buildNavItem(Icons.local_cafe, 'Menu', 1),
-            const SizedBox(width: 60), 
-            _buildNavItem(Icons.receipt_long, 'History', 2),
-            _buildNavItem(Icons.person, 'Profile', 3),
+            IconButton(
+              icon: Icon(Icons.home, color: _bottomNavIndex == 0 ? primaryGreen : Colors.grey),
+              onPressed: () => setState(() => _bottomNavIndex = 0),
+            ),
+            const SizedBox(width: 40), 
+            IconButton(
+              icon: Icon(Icons.assignment, color: _bottomNavIndex == 1 ? primaryGreen : Colors.grey),
+              onPressed: () => setState(() => _bottomNavIndex = 1),
+            ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, int index) {
-    final isActive = _bottomNavIndex == index;
-    final color = isActive ? primaryGreen : Colors.grey.shade500;
-    return Expanded(
-      child: HoverBounceWrapper(
-        onTap: () => setState(() => _bottomNavIndex = index),
-        child: Container(
-          color: Colors.transparent, 
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(height: 4),
-              Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
-            ],
-          ),
         ),
       ),
     );
   }
 }
 
-// --- NEW ANIMATION UTILITY ---
-
-/// Adds a subtle hover scale up, and a satisfying tap scale down.
+// --- UTILITY CLASS PAINTER & HOVER ---
 class HoverBounceWrapper extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
-
   const HoverBounceWrapper({Key? key, required this.child, this.onTap}) : super(key: key);
 
   @override
@@ -511,7 +451,6 @@ class _HoverBounceWrapperState extends State<HoverBounceWrapper> {
   @override
   Widget build(BuildContext context) {
     final double scale = _isPressed ? 0.95 : (_isHovering ? 1.02 : 1.0);
-
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovering = true),
       onExit: (_) => setState(() => _isHovering = false),
@@ -541,12 +480,13 @@ class DottedBackgroundPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color..strokeWidth = 2..strokeCap = StrokeCap.round;
-    for (double i = 0; i < size.width; i += 20.0) {
-      for (double j = 0; j < size.height; j += 20.0) {
-        canvas.drawCircle(Offset(i, j), 2.5, paint);
+    for (double i = 0; i < size.width; i += 15) {
+      for (double j = 0; j < size.height; j += 15) {
+        canvas.drawCircle(Offset(i, j), 1.5, paint);
       }
     }
   }
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

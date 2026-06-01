@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'cart_manager.dart'; 
 
 class TakeoutPage extends StatefulWidget {
   const TakeoutPage({super.key});
@@ -17,133 +18,61 @@ class _TakeoutPageState extends State<TakeoutPage> {
   final Color lightGreenCard = const Color(0xFFDCE2B9);
   final Color darkGrey = const Color(0xFF4A4D4A);
   
-  final String baseUrl = 'http://localhost:3000'; 
-  String _selectedPaymentMethod = 'Gopay';
+  final String baseUrl = 'http://10.0.2.2:3000'; // <-- FIX: Emulator IP
+  String _selectedPaymentMethod = 'QRIS';
 
-  List<Map<String, dynamic>> _cartItems = [];
-  bool _isLoading = true;
+  // <-- FIX: Baca item langsung dari CartManager
+  List<Map<String, dynamic>> get _cartItems => CartManager.instance.items;
 
   @override
   void initState() {
     super.initState();
-    _fetchMenuFromDatabase();
+    // Mendengarkan perubahan cart (misal tambah kurang qty)
+    CartManager.instance.addListener(_onCartChange);
   }
+
+  @override
+  void dispose() {
+    CartManager.instance.removeListener(_onCartChange);
+    super.dispose();
+  }
+
+  void _onCartChange() => setState(() {});
 
   // =========================================================================
-  // 2. NETWORK OPERATIONS (GET & POST)
+  // 2. NETWORK OPERATIONS (POST ONLY)
   // =========================================================================
-  
-  Future<void> _fetchMenuFromDatabase() async {
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/api/menu'));
-      
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        final List<dynamic> menuList = data['menu'] ?? [];
-        
-        setState(() {
-          _cartItems = menuList.map<Map<String, dynamic>>((dynamic item) {
-            
-            // 1. Map Categories correctly based on SQL
-            String catName = 'Other';
-            int catId = int.tryParse(item['category_id'].toString()) ?? 1;
-            if (catId == 1) catName = 'Kitchen';
-            if (catId == 2) catName = 'Pastry'; // Properly assign pastries
-            if (catId == 3) catName = 'Beverages';
-
-            // 2. Safely parse the 'customization_options' JSON from SQL
-            List<String> spiceOpts = [];
-            Map<String, int> addonOpts = {};
-            
-            if (item['customization_options'] != null) {
-              try {
-                dynamic customRaw = item['customization_options'];
-                Map<String, dynamic> parsedCustom = (customRaw is String) 
-                    ? json.decode(customRaw) 
-                    : customRaw;
-
-                if (parsedCustom.containsKey('preferences')) {
-                  spiceOpts = List<String>.from(parsedCustom['preferences']);
-                }
-                if (parsedCustom.containsKey('addons')) {
-                  Map<String, dynamic> rawAddons = parsedCustom['addons'];
-                  addonOpts = rawAddons.map((key, value) => MapEntry(key, int.parse(value.toString())));
-                }
-              } catch (e) {
-                debugPrint("Customization parse error: $e");
-              }
-            }
-
-            // 3. Fix the Price Bug (Use base_price, not price)
-            int resolvedPrice = 0;
-            if (item['base_price'] != null) {
-              resolvedPrice = double.parse(item['base_price'].toString()).round();
-            }
-
-            return {
-              'id': item['id'].toString(),
-              'name': item['name'] ?? 'Lumiora Item',
-              'category': catName,
-              'basePrice': resolvedPrice,
-              'quantity': 1,
-              'img': item['image_url'] ?? 'assets/images/prod_triple_brew.png',
-              'type': catId == 3 ? 'drink' : 'food',
-              'selectedSpice': spiceOpts.isNotEmpty ? spiceOpts[0] : '',
-              'spiceOptions': spiceOpts,
-              'selectedAddons': <String>[], 
-              'addonOptions': addonOpts,
-            };
-          }).toList();
-          _isLoading = false;
-        });
-      } else {
-        _useFallbackData();
-      }
-    } catch (e) {
-      debugPrint("Database Fetch Error: $e");
-      _useFallbackData();
-    }
-  }
-
-  void _useFallbackData() {
-    setState(() {
-      _cartItems = [
-        {
-          'id': '1',
-          'name': 'Spicy Tuna Sando',
-          'category': 'Kitchen',
-          'basePrice': 35000,
-          'quantity': 1,
-          'img': 'assets/images/prod_brunch_deals.png',
-          'type': 'food',
-          'selectedSpice': 'Medium',
-          'spiceOptions': ['Mild', 'Medium', 'Ghost Pepper 🔥'],
-          'selectedAddons': <String>[],
-          'addonOptions': {'Extra Cheese': 5000, 'Avocado Smash': 8000},
-        }
-      ];
-      _isLoading = false;
-    });
-  }
 
   Future<void> _sendOrderToBackend() async {
+    const Map<String, String> paymentMap = {
+      'Gopay': 'qris',
+      'OVO': 'qris',
+      'Dana': 'qris',
+      'ShopeePay': 'qris',
+      'LinkAja': 'qris',
+      'QRIS': 'qris',
+      'Debit': 'debit',
+      'Credit Card': 'cc',
+      'Cashier': 'cashier',
+    };
+
     final List<Map<String, dynamic>> orderItemsPayload = _cartItems.map((item) {
       return {
         'menu_item_id': int.tryParse(item['id'].toString()) ?? 1,
-        'quantity': item['quantity'],
-        'price': item['basePrice'],
+        'quantity': item['quantity'] ?? 1,
+        'price_at_sale': item['basePrice'] ?? 0, 
         'customizations': {
-          'preference': item['selectedSpice'],
-          'addons': item['selectedAddons']
+          'preference': item['selectedSpice'] ?? '',
+          'addons': item['selectedAddons'] ?? [],
         }
       };
     }).toList();
 
     final Map<String, dynamic> checkoutPayload = {
-      'order_type': 'Pickup',
-      'payment_method': _selectedPaymentMethod,
+      'order_type': 'takeaway', 
+      'payment_method': paymentMap[_selectedPaymentMethod] ?? 'qris', 
       'total_amount': _finalTotal,
-      'items': orderItemsPayload
+      'items': orderItemsPayload,
     };
 
     try {
@@ -154,7 +83,8 @@ class _TakeoutPageState extends State<TakeoutPage> {
       );
 
       final Map<String, dynamic> result = json.decode(response.body);
-      if (response.statusCode == 200 && result['success'] == true) {
+      if ((response.statusCode == 200 || response.statusCode == 201) && result['success'] == true) {
+        CartManager.instance.clear(); // Bersihkan cart jika sukses
         _showSuccessDialog(result['order_number'] ?? 'LUM-XXXX');
       } else {
         _showErrorSnackBar("Backend Rejection: ${result['error'] ?? 'Unknown error'}");
@@ -187,7 +117,9 @@ class _TakeoutPageState extends State<TakeoutPage> {
   int get _pb1 => (_subtotal * 0.10).round();
   int get _vat => (_subtotal * 0.11).round();
   int get _finalTotal => _subtotal - _discount + _pb1 + _vat;
-  int get _stampsEarned => _finalTotal > 0 ? (_finalTotal / 30000).floor().clamp(1, 10) : 0;
+  
+  // <-- FIX: Stamps clamp 0 sampai 10
+  int get _stampsEarned => _finalTotal > 0 ? (_finalTotal / 30000).floor().clamp(0, 10) : 0;
 
   String _formatRp(int amount) {
     return 'Rp ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
@@ -214,39 +146,37 @@ class _TakeoutPageState extends State<TakeoutPage> {
           child: Icon(Icons.arrow_back_ios_new, color: darkGrey, size: 20),
         ),
       ),
-      body: _isLoading 
-        ? Center(child: CircularProgressIndicator(color: primaryGreen))
-        : Stack(
-            children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 8.0, bottom: 120.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionHeader("PICK UP LOCATION & TIME"),
-                    _buildInfoCard(),
-                    const SizedBox(height: 24),
-                    _buildSectionHeader("YOUR BASKET"),
-                    _buildCartItemList(),
-                    const SizedBox(height: 24),
-                    _buildSectionHeader("LOYALTY REWARDS"),
-                    _buildStampSection(),
-                    const SizedBox(height: 24),
-                    _buildSectionHeader("PAYMENT DETAILS"),
-                    _buildPaymentDetailsCard(),
-                    const SizedBox(height: 24),
-                    _buildSectionHeader("CUSTOMER CONTACT"),
-                    _buildContactField(),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-              Positioned(
-                bottom: 0, left: 0, right: 0,
-                child: _buildStickyBottomPanel(),
-              ),
-            ],
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 8.0, bottom: 120.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSectionHeader("PICK UP LOCATION & TIME"),
+                _buildInfoCard(),
+                const SizedBox(height: 24),
+                _buildSectionHeader("YOUR BASKET"),
+                _buildCartItemList(),
+                const SizedBox(height: 24),
+                _buildSectionHeader("LOYALTY REWARDS"),
+                _buildStampSection(),
+                const SizedBox(height: 24),
+                _buildSectionHeader("PAYMENT DETAILS"),
+                _buildPaymentDetailsCard(),
+                const SizedBox(height: 24),
+                _buildSectionHeader("CUSTOMER CONTACT"),
+                _buildContactField(),
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            child: _buildStickyBottomPanel(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -288,6 +218,20 @@ class _TakeoutPageState extends State<TakeoutPage> {
   );
 
   Widget _buildCartItemList() {
+    if (_cartItems.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+        child: Column(children: const [
+          Icon(Icons.shopping_basket_outlined, size: 60, color: Colors.grey),
+          SizedBox(height: 12),
+          Text("Your basket is empty.\nAdd items from the Menu page.",
+              textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+        ]),
+      );
+    }
+
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -342,22 +286,16 @@ class _TakeoutPageState extends State<TakeoutPage> {
                     Row(
                       children: [
                         _buildQtyButton(Icons.remove, () {
-                          setState(() {
-                            if (item['quantity'] > 1) {
-                              item['quantity']--;
-                            } else {
-                              _cartItems.removeAt(index);
-                            }
-                          });
+                          final q = item['quantity'] as int;
+                          CartManager.instance.updateQuantity(index, q - 1);
                         }),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 10),
                           child: Text("${item['quantity']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                         ),
                         _buildQtyButton(Icons.add, () {
-                          setState(() {
-                            item['quantity']++;
-                          });
+                          final q = item['quantity'] as int;
+                          CartManager.instance.updateQuantity(index, q + 1);
                         }),
                       ],
                     )
@@ -432,40 +370,51 @@ class _TakeoutPageState extends State<TakeoutPage> {
     ),
   );
 
+  // <-- FIX: Tampilkan 10 slot stamp secara visual
   Widget _buildStampSection() => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white, borderRadius: BorderRadius.circular(16),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 4))]
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text("Stamp Accrual Progress", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-            Text("+$_stampsEarned Stamps Pending", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.w900, fontSize: 12)),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: List.generate(5, (index) {
-            bool isEarned = index < _stampsEarned;
-            return AnimatedScale(
-              scale: isEarned ? 1.0 : 0.85,
-              duration: const Duration(milliseconds: 300),
-              child: Opacity(
-                opacity: isEarned ? 1.0 : 0.35,
-                child: Image.asset('assets/images/stamp.png', width: 34, height: 34, errorBuilder: (c, e, s) => Icon(Icons.stars, color: primaryGreen, size: 34)),
-              ),
-            );
-          }),
-        ),
-      ],
+  padding: const EdgeInsets.all(16),
+  decoration: BoxDecoration(
+    color: Colors.white, borderRadius: BorderRadius.circular(16),
+    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 4))],
+  ),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text("Stamp Accrual Progress", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+          Text("+$_stampsEarned Stamps Pending", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.w900, fontSize: 12)),
+        ],
+      ),
+      const SizedBox(height: 14),
+      // BARIS 1: stamps 1-5
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: List.generate(5, (i) => _buildStampSlot(i)),
+      ),
+      const SizedBox(height: 8),
+      // BARIS 2: stamps 6-10
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: List.generate(5, (i) => _buildStampSlot(i + 5)),
+      ),
+    ],
+  ),
+);
+
+Widget _buildStampSlot(int index) {
+  final bool isEarned = index < _stampsEarned;
+  return AnimatedScale(
+    scale: isEarned ? 1.0 : 0.85,
+    duration: const Duration(milliseconds: 300),
+    child: Opacity(
+      opacity: isEarned ? 1.0 : 0.35,
+      child: Image.asset('assets/images/stamp.png', width: 34, height: 34,
+          errorBuilder: (_, __, ___) => Icon(Icons.stars, color: primaryGreen, size: 34)),
     ),
   );
+}
 
   Widget _buildPaymentDetailsCard() => Container(
     padding: const EdgeInsets.all(16),
@@ -534,7 +483,18 @@ class _TakeoutPageState extends State<TakeoutPage> {
           ),
           const SizedBox(height: 10),
           HoverBounceWrapper(
-            onTap: _sendOrderToBackend,
+            onTap: () {
+              if (_cartItems.isEmpty) {
+                _showErrorSnackBar("Your basket is empty.");
+                return;
+              }
+              // <-- FIX: Tampilkan dialog QRIS dulu sebelum tembak API
+              if (['QRIS', 'Gopay', 'OVO', 'Dana', 'ShopeePay', 'LinkAja'].contains(_selectedPaymentMethod)) {
+                _showQrisDialog();
+              } else {
+                _sendOrderToBackend();
+              }
+            },
             child: Container(
               width: double.infinity, height: 52,
               decoration: BoxDecoration(color: primaryGreen, borderRadius: BorderRadius.circular(16)),
@@ -590,7 +550,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
                           backgroundColor: Colors.white,
                           onSelected: (val) {
                             setModalState(() => item['selectedSpice'] = opt);
-                            setState(() {});
+                            setState(() {}); // trigger cart re-render
                           },
                         );
                       }).toList(),
@@ -647,35 +607,80 @@ class _TakeoutPageState extends State<TakeoutPage> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        final methods = ['Gopay', 'OVO', 'Dana', 'ShopeePay', 'LinkAja'];
+        final methods = ['QRIS', 'Gopay', 'OVO', 'Dana', 'ShopeePay', 'LinkAja', 'Debit', 'Credit Card', 'Cashier'];
         return Container(
           decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24))),
           padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text("SELECT PAYMENT PLATFORM", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-              const SizedBox(height: 12),
-              ...methods.map((method) => ListTile(
-                leading: Icon(Icons.account_balance_wallet_outlined, color: primaryGreen),
-                title: Text(method, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                trailing: _selectedPaymentMethod == method ? Icon(Icons.check_circle, color: primaryGreen) : null,
-                onTap: () {
-                  setState(() => _selectedPaymentMethod = method);
-                  Navigator.pop(context);
-                },
-              )).toList(),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("SELECT PAYMENT PLATFORM", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                const SizedBox(height: 12),
+                ...methods.map((method) => ListTile(
+                  leading: Icon(Icons.account_balance_wallet_outlined, color: primaryGreen),
+                  title: Text(method, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  trailing: _selectedPaymentMethod == method ? Icon(Icons.check_circle, color: primaryGreen) : null,
+                  onTap: () {
+                    setState(() => _selectedPaymentMethod = method);
+                    Navigator.pop(context);
+                  },
+                )).toList(),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
+  // <-- FIX: Dialog QRIS Statis
+  void _showQrisDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("Scan QRIS to Pay", style: TextStyle(fontWeight: FontWeight.w900, color: primaryGreen, fontSize: 16)),
+              const SizedBox(height: 12),
+              const Text("Use any QRIS-compatible e-wallet", style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(border: Border.all(color: primaryGreen, width: 2), borderRadius: BorderRadius.circular(16)),
+                child: Image.asset('assets/images/qris_static.png', width: 220, height: 220, fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Container(width: 220, height: 220, color: Colors.grey.shade200, child: const Icon(Icons.qr_code_2, size: 100))),
+              ),
+              const SizedBox(height: 16),
+              Text("Total ${_formatRp(_finalTotal)}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 16),
+              HoverBounceWrapper(
+                onTap: () {
+                  Navigator.pop(context); // Tutup dialog QRIS
+                  _sendOrderToBackend();  // Kirim data ke database
+                },
+                child: Container(
+                  width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(color: primaryGreen, borderRadius: BorderRadius.circular(12)),
+                  child: const Center(child: Text("I've Paid – Confirm Order", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showSuccessDialog(String orderNum) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(

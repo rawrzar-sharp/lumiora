@@ -29,58 +29,51 @@ function generateOrderNumber() {
 // DEMO STEP 1: Receive Order from Phone App (Frontend)
 // =========================================================================
 app.post('/api/orders', async (req, res) => {
-    const { order_type, payment_method, total_amount, items } = req.body;
-    
-    // Validate required payload elements
-    if (!order_type || !payment_method || !total_amount || !items || !items.length) {
-        return res.status(400).json({ success: false, error: "Missing required order payloads" });
+  const { order_type, payment_method, total_amount, items } = req.body;
+
+  if (!order_type || !payment_method || total_amount == null || !items || !items.length) {
+    return res.status(400).json({ success: false, error: "Missing required order payloads" });
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const orderNumber = generateOrderNumber();
+
+    const [orderResult] = await connection.execute(
+      `INSERT INTO orders (order_number, order_type, payment_method, payment_status, order_status, total_amount)
+       VALUES (?, ?, ?, 'pending_verification', 'pending', ?)`,
+      [orderNumber, order_type, payment_method, total_amount]
+    );
+    const insertId = orderResult.insertId;
+
+    const itemInsertQuery = `INSERT INTO order_items (order_id, menu_item_id, quantity, price_at_sale) VALUES (?, ?, ?, ?)`;
+    for (const item of items) {
+      // Defensive: fallback ke null bukan undefined supaya driver tidak crash
+      const menuItemId = item.menu_item_id ?? null;
+      const qty        = item.quantity ?? 1;
+      const price      = item.price_at_sale ?? item.price ?? 0;  // backward compatible
+
+      if (menuItemId == null) {
+        throw new Error(`Missing menu_item_id for item: ${JSON.stringify(item)}`);
+      }
+      await connection.execute(itemInsertQuery, [insertId, menuItemId, qty, price]);
     }
 
-    const connection = await pool.getConnection();
-    try {
-        // Start an ACID transaction to guarantee data integrity across both tables
-        await connection.beginTransaction();
-
-        const orderNumber = generateOrderNumber();
-
-        // 1. Insert order metadata record
-        const [orderResult] = await connection.execute(
-            `INSERT INTO orders (order_number, order_type, payment_method, payment_status, order_status, total_amount) 
-             VALUES (?, ?, ?, 'pending_verification', 'pending', ?)`,
-            [orderNumber, order_type, payment_method, total_amount]
-        );
-
-        const insertId = orderResult.insertId;
-
-        // 2. Insert line items loop mapping directly to your relational schema
-        const itemInsertQuery = `INSERT INTO order_items (order_id, menu_item_id, quantity, price_at_sale) VALUES (?, ?, ?, ?)`;
-        for (const item of items) {
-            await connection.execute(itemInsertQuery, [
-                insertId, 
-                item.menu_item_id, // Integer matching your menu_items primary keys
-                item.quantity, 
-                item.price_at_sale
-            ]);
-        }
-
-        // Commit transaction data securely to MySQL
-        await connection.commit();
-        
-        res.status(201).json({
-            success: true,
-            message: "Order placed successfully",
-            order_id: insertId,
-            order_number: orderNumber
-        });
-
-    } catch (error) {
-        // Rollback all entries if any individual insertion fails
-        await connection.rollback();
-        console.error("Order Transaction Error:", error);
-        res.status(500).json({ success: false, error: "Internal Database Server Error" });
-    } finally {
-        connection.release();
-    }
+    await connection.commit();
+    res.status(201).json({
+      success: true,
+      message: "Order placed successfully",
+      order_id: insertId,
+      order_number: orderNumber
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Order Transaction Error:", error);
+    res.status(500).json({ success: false, error: error.message || "Internal Database Server Error" });
+  } finally {
+    connection.release();
+  }
 });
 
 // =========================================================================

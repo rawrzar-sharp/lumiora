@@ -35,13 +35,16 @@ CREATE TABLE `menu_items` (
   `category_id` INT NOT NULL,
   `name` VARCHAR(100) NOT NULL,
   `description` TEXT NULL,
-  `base_price` DECIMAL(10,2) NOT NULL, 
-  `is_recommended` TINYINT(1) NOT NULL DEFAULT 0, 
+  `base_price` DECIMAL(10,2) NOT NULL,
+  `is_recommended` TINYINT(1) NOT NULL DEFAULT 0,
   `image_url` VARCHAR(255) NULL,
+  `customization_options` JSON NULL,     -- <<<< TAMBAH INI
   `is_available` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`category_id`) REFERENCES `menu_categories`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE menu_items ADD COLUMN customization_options JSON NULL AFTER image_url;
 
 CREATE TABLE `recipes` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -114,26 +117,75 @@ INSERT INTO `menu_categories` (`id`, `name`, `printer_target`) VALUES
 (4, 'Non-Coffee', 'Beverages'),
 (5, 'Trio Deals', 'Kitchen');
 
-INSERT INTO `menu_items` (`id`, `category_id`, `name`, `description`, `base_price`, `is_recommended`) VALUES
+INSERT INTO `menu_items` (`id`, `category_id`, `name`, `description`, `base_price`, `is_recommended`, `image_url`) VALUES
 -- Brunch
-(1, 1, 'Truffle Scramble Egg Toast', 'Creamy truffle scrambled eggs on toasted brioche', 35000.00, 1),
-(2, 1, 'Smoked Brisket Hash', 'Tender smoked brisket with crispy potato hash', 45000.00, 1),
-(3, 1, 'Spicy Tuna Sando', 'Delicious signature sando with crisp tuna mix', 35000.00, 0),
+(1, 1, 'Truffle Scramble Egg Toast',   'Creamy truffle scrambled eggs on toasted brioche',          35000.00, 1, 'assets/images/prod_brunch_deals.png'),
+(2, 1, 'Smoked Brisket Hash',          'Tender smoked brisket with crispy potato hash',             45000.00, 1, 'assets/images/prod_brunch_deals (2).png'),
+(3, 1, 'Spicy Tuna Sando',             'Delicious signature sando with crisp tuna mix',             35000.00, 0, 'assets/images/sando(new_bonus_unlock).png'),
 -- Pastry
-(4, 2, 'Pistachio Raspberry Croissant', 'Flaky croissant with rich pistachio cream and raspberry glaze', 30000.00, 1),
-(5, 2, 'Butter Croissant', 'Classic golden French butter croissant', 18000.00, 0),
-(6, 2, 'Croissant Crisp', 'Flaky butter croissant baked flat and crunchy', 15000.00, 0),
+(4, 2, 'Pistachio Raspberry Croissant','Flaky croissant with rich pistachio cream and raspberry',   30000.00, 1, 'assets/images/crossait(new_bonus_unlock).png'),
+(5, 2, 'Butter Croissant',             'Classic golden French butter croissant',                    18000.00, 0, 'assets/images/crossait(new_bonus_unlock).png'),
+(6, 2, 'Croissant Crisp',              'Flaky butter croissant baked flat and crunchy',             15000.00, 0, 'assets/images/crossait(new_bonus_unlock).png'),
 -- Coffee
-(7, 3, 'Iced Sea Salt Latte', 'Espresso over cold milk topped with creamy savory sea salt foam', 28000.00, 1),
-(8, 3, 'Salted Caramel Latte', 'Smooth espresso blended with sweet and salty caramel', 25000.00, 1),
-(9, 3, 'Americano', 'Classic bold espresso over water', 20000.00, 0),
+(7, 3, 'Iced Sea Salt Latte',          'Espresso over cold milk topped with creamy sea salt foam',  28000.00, 1, 'assets/images/prod_coffee_splash.png'),
+(8, 3, 'Salted Caramel Latte',         'Smooth espresso blended with sweet and salty caramel',      25000.00, 1, 'assets/images/prod_triple_brew.png'),
+(9, 3, 'Americano',                    'Classic bold espresso over water',                          20000.00, 0, 'assets/images/prod_coffee_splash.png'),
 -- Non-Coffee
-(10, 4, 'Matcha Strawberry', 'Premium matcha layered with fresh strawberry puree', 28000.00, 1),
-(11, 4, 'Iced Chocolate', 'Rich and creamy iced cocoa', 25000.00, 0),
-(12, 4, 'Lychee Tea', 'Refreshing iced tea with sweet lychee pieces', 20000.00, 0),
+(10, 4, 'Matcha Strawberry',           'Premium matcha layered with fresh strawberry puree',        28000.00, 1, 'assets/images/prod_triple_brew.png'),
+(11, 4, 'Iced Chocolate',              'Rich and creamy iced cocoa',                                25000.00, 0, 'assets/images/prod_triple_brew.png'),
+(12, 4, 'Lychee Tea',                  'Refreshing iced tea with sweet lychee pieces',              20000.00, 0, 'assets/images/prod_triple_brew.png'),
 -- Trio Deals
-(13, 5, 'Spicy Tuna Sando + Drink', 'Combo Set: Signature tuna sando served with a refreshingly chilled drink', 50000.00, 1),
-(14, 5, 'Pistachio Croissant + Drink', 'Combo Set: Flaky pistachio pastry paired with your choice of beverage', 55000.00, 1);
+(13, 5, 'Spicy Tuna Sando + Drink',    'Combo Set: Signature tuna sando + chilled drink',           50000.00, 1, 'assets/images/prod_trio_cafe.png'),
+(14, 5, 'Pistachio Croissant + Drink', 'Combo Set: Flaky pistachio pastry + beverage',              55000.00, 1, 'assets/images/Triplecafe(new_bonus_unlock).png');
+
+UPDATE menu_items SET customization_options = JSON_OBJECT(
+  'preferences', JSON_ARRAY('Extra Butter','Regular','Lesser Butter'),
+  'addons',      JSON_OBJECT('Ham', 5000, 'Cheese', 7000, 'Extra Jam', 3000)
+) WHERE id = 5;  -- Butter Croissant
+
+UPDATE menu_items SET customization_options = JSON_OBJECT(
+  'preferences', JSON_ARRAY('Extra Pistachio','Regular','Less Sweet'),
+  'addons',      JSON_OBJECT('Vanilla Drizzle', 4000, 'Almond Flakes', 5000)
+) WHERE id = 4;  -- Pistachio Raspberry Croissant
+
+UPDATE menu_items SET customization_options = JSON_OBJECT(
+  'preferences', JSON_ARRAY('Crunchy','Regular'),
+  'addons',      JSON_OBJECT('Chocolate Dip', 4000, 'Caramel Sauce', 4000)
+) WHERE id = 6;  -- Croissant Crisp
+
+-- Brunch items: spice levels + addons
+UPDATE menu_items SET customization_options = JSON_OBJECT(
+  'preferences', JSON_ARRAY('Mild','Medium','Spicy'),
+  'addons',      JSON_OBJECT('Extra Egg', 8000, 'Avocado Smash', 10000, 'Bacon', 12000)
+) WHERE id = 1;  -- Truffle Scramble Egg Toast
+
+UPDATE menu_items SET customization_options = JSON_OBJECT(
+  'preferences', JSON_ARRAY('Mild','Medium','Spicy'),
+  'addons',      JSON_OBJECT('Extra Brisket', 15000, 'Fried Egg', 8000)
+) WHERE id = 2;  -- Smoked Brisket Hash
+
+UPDATE menu_items SET customization_options = JSON_OBJECT(
+  'preferences', JSON_ARRAY('Mild','Medium','Ghost Pepper'),
+  'addons',      JSON_OBJECT('Extra Cheese', 5000, 'Avocado Smash', 8000)
+) WHERE id = 3;  -- Spicy Tuna Sando
+
+-- Coffee: sugar & ice + addons
+UPDATE menu_items SET customization_options = JSON_OBJECT(
+  'preferences', JSON_ARRAY('Less Sugar','Normal Sugar','Extra Sweet','No Ice','Less Ice'),
+  'addons',      JSON_OBJECT('Extra Shot', 7000, 'Oat Milk', 8000, 'Whipped Cream', 5000)
+) WHERE id IN (7, 8, 9);
+
+-- Non-Coffee: sugar/ice
+UPDATE menu_items SET customization_options = JSON_OBJECT(
+  'preferences', JSON_ARRAY('Less Sugar','Normal Sugar','Extra Sweet','No Ice','Less Ice'),
+  'addons',      JSON_OBJECT('Boba', 6000, 'Cheese Foam', 8000, 'Coconut Jelly', 5000)
+) WHERE id IN (10, 11, 12);
+
+-- Trio combos
+UPDATE menu_items SET customization_options = JSON_OBJECT(
+  'preferences', JSON_ARRAY('Coffee','Matcha','Chocolate'),
+  'addons',      JSON_OBJECT('Upgrade to Large', 10000)
+) WHERE id IN (13, 14);
 
 
 -- =========================================================================
