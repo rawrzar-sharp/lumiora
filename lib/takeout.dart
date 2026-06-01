@@ -18,7 +18,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
   final Color lightGreenCard = const Color(0xFFDCE2B9);
   final Color darkGrey = const Color(0xFF4A4D4A);
   
-  final String baseUrl = 'http://10.0.2.2:3000'; // <-- FIX: Emulator IP
+  final String baseUrl = 'http://localhost:3000'; // <-- FIX: Emulator IP
   String _selectedPaymentMethod = 'QRIS';
 
   // <-- FIX: Baca item langsung dari CartManager
@@ -29,6 +29,24 @@ class _TakeoutPageState extends State<TakeoutPage> {
     super.initState();
     // Mendengarkan perubahan cart (misal tambah kurang qty)
     CartManager.instance.addListener(_onCartChange);
+
+    // --- TAMBAHAN SEMENTARA UNTUK TESTING ---
+    // Jika keranjang kosong saat halaman ini dibuka, otomatis masukkan 1 menu
+    // PERBAIKAN: Menambahkan tanda '?' setelah instance
+    WidgetsBinding.instance?.addPostFrameCallback((_) {
+      if (CartManager.instance.isEmpty) {
+        CartManager.instance.addItem({
+          'id': 7, // Menggunakan ID 7 (Iced Sea Salt Latte di Database Anda)
+          'name': 'Iced Sea Salt Latte (Dummy Test)',
+          'category': 'Beverages',
+          'basePrice': 28000.0,
+          'image_url': null,
+          'selectedSpice': 'Normal',
+          'selectedAddons': [],
+        });
+      }
+    });
+    // ----------------------------------------
   }
 
   @override

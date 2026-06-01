@@ -12,7 +12,7 @@ class MenuPage extends StatefulWidget {
 
 class _MenuPageState extends State<MenuPage> {
   final Color primaryGreen = const Color(0xFF7B8C2A);
-  final String baseUrl = 'http://10.0.2.2:3000'; // IP khusus Emulator Android ke localhost komputer
+  final String baseUrl = 'http://localhost:3000'; // IP khusus Emulator Android ke localhost komputer
   List<Map<String, dynamic>> _menu = [];
   bool _loading = true;
   String? _errorMessage;
