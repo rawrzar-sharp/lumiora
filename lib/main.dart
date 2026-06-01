@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'takeout.dart'; 
+import 'menu_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -412,22 +413,44 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget _buildBottomNav() {
     return BottomAppBar(
       shape: const CircularNotchedRectangle(),
-      notchMargin: 8,
+      notchMargin: 8.0,
+      color: const Color(0xFFEBE5D9),
+      elevation: 10,
       child: SizedBox(
-        height: 60,
+        height: 65,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            IconButton(
-              icon: Icon(Icons.home, color: _bottomNavIndex == 0 ? primaryGreen : Colors.grey),
-              onPressed: () => setState(() => _bottomNavIndex = 0),
-            ),
-            const SizedBox(width: 40), 
-            IconButton(
-              icon: Icon(Icons.assignment, color: _bottomNavIndex == 1 ? primaryGreen : Colors.grey),
-              onPressed: () => setState(() => _bottomNavIndex = 1),
-            ),
+            _buildNavItem(Icons.home_filled, 'Home', 0, onTap: () => setState(() => _bottomNavIndex = 0)),
+            _buildNavItem(Icons.local_cafe, 'Menu', 1, onTap: () {
+              setState(() => _bottomNavIndex = 1);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const MenuPage()));
+            }),
+            const SizedBox(width: 60), // ruang untuk FAB notch
+            _buildNavItem(Icons.receipt_long, 'History', 2, onTap: () => setState(() => _bottomNavIndex = 2)),
+            _buildNavItem(Icons.person, 'Profile', 3, onTap: () => setState(() => _bottomNavIndex = 3)),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, int index, {required VoidCallback onTap}) {
+    final isActive = _bottomNavIndex == index;
+    final color = isActive ? primaryGreen : Colors.grey.shade500;
+    return Expanded(
+      child: HoverBounceWrapper(
+        onTap: onTap,
+        child: Container(
+          color: Colors.transparent,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(height: 4),
+              Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
+            ],
+          ),
         ),
       ),
     );
