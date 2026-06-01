@@ -27,13 +27,10 @@ class _TakeoutPageState extends State<TakeoutPage> {
   @override
   void initState() {
     super.initState();
-    // Mendengarkan perubahan cart (misal tambah kurang qty)
+   
     CartManager.instance.addListener(_onCartChange);
-
-    // --- TAMBAHAN SEMENTARA UNTUK TESTING ---
-    // Jika keranjang kosong saat halaman ini dibuka, otomatis masukkan 1 menu
-    // PERBAIKAN: Menambahkan tanda '?' setelah instance
-WidgetsBinding.instance.addPostFrameCallback((_) {
+      // <-- FIX: Tambahkan item dummy jika cart kosong (untuk testing UI)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
       if (CartManager.instance.isEmpty) {
         CartManager.instance.addItem({
           'id': 7, // Menggunakan ID 7 (Iced Sea Salt Latte di Database Anda)
@@ -74,14 +71,16 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
       'Cashier': 'cashier',
     };
 
+    print("Debug Cart Items: $_cartItems");
     final List<Map<String, dynamic>> orderItemsPayload = _cartItems.map((item) {
+      final List<dynamic> addons = (item['selectedAddons'] as List<dynamic>?) ?? [];
       return {
         'menu_item_id': int.tryParse(item['id'].toString()) ?? 1,
         'quantity': item['quantity'] ?? 1,
         'price_at_sale': item['basePrice'] ?? 0, 
         'customizations': {
           'preference': item['selectedSpice'] ?? '',
-          'addons': item['selectedAddons'] ?? [],
+          'addons': addons,
         }
       };
     }).toList();
@@ -126,28 +125,20 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
   // =========================================================================
   
   int get _subtotal {
-    int total = 0;
-    for (var item in _cartItems) {
-      final basePrice = item['basePrice'];
-      final int basePriceInt = (basePrice is int)
-          ? basePrice
-          : (basePrice is num ? basePrice.toInt() : 0);
-
-      final qty = item['quantity'];
-      final int itemQty = (qty is int) ? qty : (qty is num ? qty.toInt() : 1);
-
-      final Map<String, int> addonOpts = Map<String, int>.from(item['addonOptions'] ?? const {});
-      final List<String> currentAddons = List<String>.from(item['selectedAddons'] ?? const []);
-
-      int itemCost = basePriceInt;
-      
-      for (var addon in currentAddons) {
-        itemCost += addonOpts[addon] ?? 0;
-      }
-      total += itemCost * (item['quantity'] as int);
-    }
-    return total;
+  int total = 0;
+  for (var item in _cartItems) {
+    // Pastikan basePrice dipaksa menjadi angka/int
+    final basePriceRaw = item['basePrice'];
+    final int basePrice = (basePriceRaw is num) ? basePriceRaw.toInt() : 0;
+    
+    // Pastikan quantity dipaksa menjadi angka/int
+    final qtyRaw = item['quantity'];
+    final int qty = (qtyRaw is num) ? qtyRaw.toInt() : 0;
+    
+    total += (basePrice * qty);
   }
+  return total;
+}
 
   int get _discount => _subtotal > 50000 ? 15000 : 0;
   int get _pb1 => (_subtotal * 0.10).round();

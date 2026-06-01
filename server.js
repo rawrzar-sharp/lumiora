@@ -4,6 +4,8 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+// Pastikan ini ada di atas semua route
+app.use(cors({ origin: "*" }));
 app.use(cors());
 app.use(express.json());
 
