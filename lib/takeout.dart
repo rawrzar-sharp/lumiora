@@ -33,13 +33,13 @@ class _TakeoutPageState extends State<TakeoutPage> {
     // --- TAMBAHAN SEMENTARA UNTUK TESTING ---
     // Jika keranjang kosong saat halaman ini dibuka, otomatis masukkan 1 menu
     // PERBAIKAN: Menambahkan tanda '?' setelah instance
-    WidgetsBinding.instance?.addPostFrameCallback((_) {
+WidgetsBinding.instance.addPostFrameCallback((_) {
       if (CartManager.instance.isEmpty) {
         CartManager.instance.addItem({
           'id': 7, // Menggunakan ID 7 (Iced Sea Salt Latte di Database Anda)
           'name': 'Iced Sea Salt Latte (Dummy Test)',
           'category': 'Beverages',
-          'basePrice': 28000.0,
+          'basePrice': 28000,
           'image_url': null,
           'selectedSpice': 'Normal',
           'selectedAddons': [],
@@ -100,10 +100,19 @@ class _TakeoutPageState extends State<TakeoutPage> {
         body: json.encode(checkoutPayload),
       );
 
-      final Map<String, dynamic> result = json.decode(response.body);
-      if ((response.statusCode == 200 || response.statusCode == 201) && result['success'] == true) {
+      final decoded = json.decode(response.body);
+
+      if (decoded is! Map) {
+        _showErrorSnackBar("Unexpected backend response (not an object): $decoded");
+        return;
+      }
+
+      final Map<String, dynamic> result = (decoded as Map).cast<String, dynamic>();
+      final bool success = result['success'] == true;
+
+      if ((response.statusCode == 200 || response.statusCode == 201) && success) {
         CartManager.instance.clear(); // Bersihkan cart jika sukses
-        _showSuccessDialog(result['order_number'] ?? 'LUM-XXXX');
+        _showSuccessDialog(result['order_number']?.toString() ?? 'LUM-XXXX');
       } else {
         _showErrorSnackBar("Backend Rejection: ${result['error'] ?? 'Unknown error'}");
       }
@@ -119,9 +128,18 @@ class _TakeoutPageState extends State<TakeoutPage> {
   int get _subtotal {
     int total = 0;
     for (var item in _cartItems) {
-      int itemCost = item['basePrice'] as int;
-      final Map<String, int> addonOpts = Map<String, int>.from(item['addonOptions']);
-      final List<String> currentAddons = List<String>.from(item['selectedAddons']);
+      final basePrice = item['basePrice'];
+      final int basePriceInt = (basePrice is int)
+          ? basePrice
+          : (basePrice is num ? basePrice.toInt() : 0);
+
+      final qty = item['quantity'];
+      final int itemQty = (qty is int) ? qty : (qty is num ? qty.toInt() : 1);
+
+      final Map<String, int> addonOpts = Map<String, int>.from(item['addonOptions'] ?? const {});
+      final List<String> currentAddons = List<String>.from(item['selectedAddons'] ?? const []);
+
+      int itemCost = basePriceInt;
       
       for (var addon in currentAddons) {
         itemCost += addonOpts[addon] ?? 0;
@@ -256,7 +274,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
       itemCount: _cartItems.length,
       itemBuilder: (context, index) {
         final item = _cartItems[index];
-        final List<dynamic> rawAddons = item['selectedAddons'] ?? [];
+        final List<dynamic> rawAddons = (item['selectedAddons'] is List) ? (item['selectedAddons'] as List) : const <dynamic>[];
         final List<String> activeAddons = List<String>.from(rawAddons); 
         
         return Container(
@@ -277,7 +295,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
                       child: Image.asset(
-                        item['img'], 
+                        item['img'] ?? 'assets/images/logo_lumiora.png',
                         width: 65, height: 65, fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => Container(
                           color: lightGreenCard, width: 90, height: 90,
@@ -290,12 +308,14 @@ class _TakeoutPageState extends State<TakeoutPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(item['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                          Text((item['name'] ?? '').toString(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
                           const SizedBox(height: 2),
-                          Text(item['category'], style: TextStyle(fontSize: 11, color: primaryGreen, fontWeight: FontWeight.bold)),
+                          Text((item['category'] ?? '').toString(), style: TextStyle(fontSize: 11, color: primaryGreen, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           Text(
-                            _formatRp(item['basePrice'] as int), 
+                            _formatRp((item['basePrice'] is int)
+                                ? (item['basePrice'] as int)
+                                : (item['basePrice'] as num).toInt()),
                             style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13)
                           ),
                         ],
