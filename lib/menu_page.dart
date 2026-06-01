@@ -307,7 +307,7 @@ class _MenuPageState extends State<MenuPage> {
           child: Row(
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 child: Image.asset(
                   item['img'],
                   width: 90,

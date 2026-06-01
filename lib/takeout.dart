@@ -257,12 +257,12 @@ class _TakeoutPageState extends State<TakeoutPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                       child: Image.asset(
                         item['img'], 
                         width: 65, height: 65, fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => Container(
-                          color: lightGreenCard, width: 65, height: 65,
+                          color: lightGreenCard, width: 90, height: 90,
                           child: const Icon(Icons.fastfood, color: Colors.white),
                         ),
                       ),
