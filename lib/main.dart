@@ -103,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildHeroAndHeader() {
+Widget _buildHeroAndHeader() {
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -121,10 +121,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               ),
             ),
             Container(
-              height: 90,
+              height: 100, // 💡 FIX: Increased from 90 to 100
               width: double.infinity,
               color: primaryGreen,
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              // 💡 FIX: Changed vertical padding from 12.0 to 8.0 to give contents breathing room
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -132,7 +133,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     'Hello, Rafdah!',
                     style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: 0.5),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6), // 💡 OPTIONAL: Reduced from 10 to 6
                   Row(
                     children: [
                       _buildStatBadge(Icons.workspace_premium, '123', 'Stamps'),
