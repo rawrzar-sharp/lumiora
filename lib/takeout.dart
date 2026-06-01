@@ -127,15 +127,16 @@ class _TakeoutPageState extends State<TakeoutPage> {
   int get _subtotal {
   int total = 0;
   for (var item in _cartItems) {
-    // Pastikan basePrice dipaksa menjadi angka/int
-    final basePriceRaw = item['basePrice'];
-    final int basePrice = (basePriceRaw is num) ? basePriceRaw.toInt() : 0;
-    
-    // Pastikan quantity dipaksa menjadi angka/int
-    final qtyRaw = item['quantity'];
-    final int qty = (qtyRaw is num) ? qtyRaw.toInt() : 0;
-    
-    total += (basePrice * qty);
+    int itemCost = (item['basePrice'] as int?) ?? 0;
+    final Map<String, int> addonOpts =
+        Map<String, int>.from((item['addonOptions'] as Map?) ?? {});
+    final List<String> currentAddons =
+        List<String>.from((item['selectedAddons'] as List?) ?? []);
+
+    for (var addon in currentAddons) {
+      itemCost += addonOpts[addon] ?? 0;
+    }
+    total += itemCost * ((item['quantity'] as int?) ?? 1);
   }
   return total;
 }
@@ -286,7 +287,9 @@ class _TakeoutPageState extends State<TakeoutPage> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
                       child: Image.asset(
-                        item['img'] ?? 'assets/images/logo_lumiora.png',
+                        (item['img'] ?? 'assets/images/prod_triple_brew.png').toString().isNotEmpty
+                            ? item['img'].toString()
+                            : 'assets/images/prod_triple_brew.png',
                         width: 65, height: 65, fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => Container(
                           color: lightGreenCard, width: 90, height: 90,
@@ -304,9 +307,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
                           Text((item['category'] ?? '').toString(), style: TextStyle(fontSize: 11, color: primaryGreen, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           Text(
-                            _formatRp((item['basePrice'] is int)
-                                ? (item['basePrice'] as int)
-                                : (item['basePrice'] as num).toInt()),
+                            _formatRp((item['basePrice'] as int?) ?? 0),
                             style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13)
                           ),
                         ],
@@ -315,22 +316,23 @@ class _TakeoutPageState extends State<TakeoutPage> {
                     Row(
                       children: [
                         _buildQtyButton(Icons.remove, () {
-                          final q = item['quantity'] as int;
+                          final q = (item['quantity'] as int?) ?? 1;
                           CartManager.instance.updateQuantity(index, q - 1);
                         }),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Text("${item['quantity']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          child: Text("${(item['quantity'] as int?) ?? 1}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                         ),
                         _buildQtyButton(Icons.add, () {
-                          final q = item['quantity'] as int;
+                          final q = (item['quantity'] as int?) ?? 1;
                           CartManager.instance.updateQuantity(index, q + 1);
                         }),
                       ],
                     )
                   ],
                 ),
-                if ((item['spiceOptions'] as List).isNotEmpty || (item['addonOptions'] as Map).isNotEmpty) ...[
+                if (((item['spiceOptions'] as List?) ?? []).isNotEmpty ||
+                    ((item['addonOptions'] as Map?) ?? {}).isNotEmpty) ...[
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8.0),
                     child: Divider(height: 1, thickness: 0.5),
@@ -342,8 +344,8 @@ class _TakeoutPageState extends State<TakeoutPage> {
                         child: Wrap(
                           spacing: 6, runSpacing: 4,
                           children: [
-                            if (item['selectedSpice'].toString().isNotEmpty)
-                              _buildStatusChip(item['selectedSpice'], Icons.tune),
+                            if ((item['selectedSpice'] ?? '').toString().isNotEmpty)
+                            _buildStatusChip(item['selectedSpice'].toString(), Icons.tune),
                             ...activeAddons.map((addon) => _buildStatusChip(addon, Icons.add_circle_outline)),
                           ],
                         ),

@@ -66,15 +66,15 @@ class _MenuPageState extends State<MenuPage> {
               } catch (_) {}
             }
             return {
-              'id': item['id'].toString(),
-              'name': item['name'] ?? '',
+              'id': item['id']?.toString() ?? '0',
+              'name': (item['name'] ?? '').toString(),
               'category': _catName(item['category_id']),
-              'basePrice': double.parse(item['base_price'].toString()).round(),
+              'basePrice': double.tryParse((item['base_price'] ?? 0).toString())?.round() ?? 0,
               'img': _resolveImage(item['name'], item['image_url']),
               'selectedSpice': prefs.isNotEmpty ? prefs[0] : '',
-              'spiceOptions': prefs,
-              'selectedAddons': <String>[],
-              'addonOptions': addons,
+              'spiceOptions': prefs,                  // SELALU List<String>, tidak null
+              'selectedAddons': <String>[],           // SELALU List<String>, tidak null
+              'addonOptions': addons,                 // SELALU Map<String,int>, tidak null
             };
           }).toList();
           _loading = false;

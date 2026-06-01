@@ -44,8 +44,6 @@ CREATE TABLE `menu_items` (
   FOREIGN KEY (`category_id`) REFERENCES `menu_categories`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-ALTER TABLE menu_items ADD COLUMN customization_options JSON NULL AFTER image_url;
-
 CREATE TABLE `recipes` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `menu_item_id` INT NOT NULL,
