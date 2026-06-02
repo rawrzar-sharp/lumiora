@@ -18,7 +18,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
   final Color lightGreenCard = const Color(0xFFDCE2B9);
   final Color darkGrey = const Color(0xFF4A4D4A);
   
-  final String baseUrl = 'http://10.0.2.2:3000'; // <-- FIX: Emulator IP
+  final String baseUrl = 'http://localhost:3000'; // <-- FIX: Emulator IP
   String _selectedPaymentMethod = 'QRIS';
 
   // <-- FIX: Baca item langsung dari CartManager
@@ -27,8 +27,23 @@ class _TakeoutPageState extends State<TakeoutPage> {
   @override
   void initState() {
     super.initState();
-    // Mendengarkan perubahan cart (misal tambah kurang qty)
+   
     CartManager.instance.addListener(_onCartChange);
+      // <-- FIX: Tambahkan item dummy jika cart kosong (untuk testing UI)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (CartManager.instance.isEmpty) {
+        CartManager.instance.addItem({
+          'id': 7, // Menggunakan ID 7 (Iced Sea Salt Latte di Database Anda)
+          'name': 'Iced Sea Salt Latte (Dummy Test)',
+          'category': 'Beverages',
+          'basePrice': 28000,
+          'image_url': null,
+          'selectedSpice': 'Normal',
+          'selectedAddons': [],
+        });
+      }
+    });
+    // ----------------------------------------
   }
 
   @override
@@ -56,14 +71,16 @@ class _TakeoutPageState extends State<TakeoutPage> {
       'Cashier': 'cashier',
     };
 
+    print("Debug Cart Items: $_cartItems");
     final List<Map<String, dynamic>> orderItemsPayload = _cartItems.map((item) {
+      final List<dynamic> addons = (item['selectedAddons'] as List<dynamic>?) ?? [];
       return {
         'menu_item_id': int.tryParse(item['id'].toString()) ?? 1,
         'quantity': item['quantity'] ?? 1,
         'price_at_sale': item['basePrice'] ?? 0, 
         'customizations': {
           'preference': item['selectedSpice'] ?? '',
-          'addons': item['selectedAddons'] ?? [],
+          'addons': addons,
         }
       };
     }).toList();
@@ -82,10 +99,19 @@ class _TakeoutPageState extends State<TakeoutPage> {
         body: json.encode(checkoutPayload),
       );
 
-      final Map<String, dynamic> result = json.decode(response.body);
-      if ((response.statusCode == 200 || response.statusCode == 201) && result['success'] == true) {
+      final decoded = json.decode(response.body);
+
+      if (decoded is! Map) {
+        _showErrorSnackBar("Unexpected backend response (not an object): $decoded");
+        return;
+      }
+
+      final Map<String, dynamic> result = (decoded as Map).cast<String, dynamic>();
+      final bool success = result['success'] == true;
+
+      if ((response.statusCode == 200 || response.statusCode == 201) && success) {
         CartManager.instance.clear(); // Bersihkan cart jika sukses
-        _showSuccessDialog(result['order_number'] ?? 'LUM-XXXX');
+        _showSuccessDialog(result['order_number']?.toString() ?? 'LUM-XXXX');
       } else {
         _showErrorSnackBar("Backend Rejection: ${result['error'] ?? 'Unknown error'}");
       }
@@ -99,19 +125,21 @@ class _TakeoutPageState extends State<TakeoutPage> {
   // =========================================================================
   
   int get _subtotal {
-    int total = 0;
-    for (var item in _cartItems) {
-      int itemCost = item['basePrice'] as int;
-      final Map<String, int> addonOpts = Map<String, int>.from(item['addonOptions']);
-      final List<String> currentAddons = List<String>.from(item['selectedAddons']);
-      
-      for (var addon in currentAddons) {
-        itemCost += addonOpts[addon] ?? 0;
-      }
-      total += itemCost * (item['quantity'] as int);
+  int total = 0;
+  for (var item in _cartItems) {
+    int itemCost = (item['basePrice'] as int?) ?? 0;
+    final Map<String, int> addonOpts =
+        Map<String, int>.from((item['addonOptions'] as Map?) ?? {});
+    final List<String> currentAddons =
+        List<String>.from((item['selectedAddons'] as List?) ?? []);
+
+    for (var addon in currentAddons) {
+      itemCost += addonOpts[addon] ?? 0;
     }
-    return total;
+    total += itemCost * ((item['quantity'] as int?) ?? 1);
   }
+  return total;
+}
 
   int get _discount => _subtotal > 50000 ? 15000 : 0;
   int get _pb1 => (_subtotal * 0.10).round();
@@ -238,7 +266,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
       itemCount: _cartItems.length,
       itemBuilder: (context, index) {
         final item = _cartItems[index];
-        final List<dynamic> rawAddons = item['selectedAddons'] ?? [];
+        final List<dynamic> rawAddons = (item['selectedAddons'] is List) ? (item['selectedAddons'] as List) : const <dynamic>[];
         final List<String> activeAddons = List<String>.from(rawAddons); 
         
         return Container(
@@ -257,12 +285,14 @@ class _TakeoutPageState extends State<TakeoutPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                       child: Image.asset(
-                        item['img'], 
+                        (item['img'] ?? 'assets/images/prod_triple_brew.png').toString().isNotEmpty
+                            ? item['img'].toString()
+                            : 'assets/images/prod_triple_brew.png',
                         width: 65, height: 65, fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => Container(
-                          color: lightGreenCard, width: 65, height: 65,
+                          color: lightGreenCard, width: 90, height: 90,
                           child: const Icon(Icons.fastfood, color: Colors.white),
                         ),
                       ),
@@ -272,12 +302,12 @@ class _TakeoutPageState extends State<TakeoutPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(item['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                          Text((item['name'] ?? '').toString(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
                           const SizedBox(height: 2),
-                          Text(item['category'], style: TextStyle(fontSize: 11, color: primaryGreen, fontWeight: FontWeight.bold)),
+                          Text((item['category'] ?? '').toString(), style: TextStyle(fontSize: 11, color: primaryGreen, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           Text(
-                            _formatRp(item['basePrice'] as int), 
+                            _formatRp((item['basePrice'] as int?) ?? 0),
                             style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13)
                           ),
                         ],
@@ -286,22 +316,23 @@ class _TakeoutPageState extends State<TakeoutPage> {
                     Row(
                       children: [
                         _buildQtyButton(Icons.remove, () {
-                          final q = item['quantity'] as int;
+                          final q = (item['quantity'] as int?) ?? 1;
                           CartManager.instance.updateQuantity(index, q - 1);
                         }),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Text("${item['quantity']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          child: Text("${(item['quantity'] as int?) ?? 1}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                         ),
                         _buildQtyButton(Icons.add, () {
-                          final q = item['quantity'] as int;
+                          final q = (item['quantity'] as int?) ?? 1;
                           CartManager.instance.updateQuantity(index, q + 1);
                         }),
                       ],
                     )
                   ],
                 ),
-                if ((item['spiceOptions'] as List).isNotEmpty || (item['addonOptions'] as Map).isNotEmpty) ...[
+                if (((item['spiceOptions'] as List?) ?? []).isNotEmpty ||
+                    ((item['addonOptions'] as Map?) ?? {}).isNotEmpty) ...[
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8.0),
                     child: Divider(height: 1, thickness: 0.5),
@@ -313,8 +344,8 @@ class _TakeoutPageState extends State<TakeoutPage> {
                         child: Wrap(
                           spacing: 6, runSpacing: 4,
                           children: [
-                            if (item['selectedSpice'].toString().isNotEmpty)
-                              _buildStatusChip(item['selectedSpice'], Icons.tune),
+                            if ((item['selectedSpice'] ?? '').toString().isNotEmpty)
+                            _buildStatusChip(item['selectedSpice'].toString(), Icons.tune),
                             ...activeAddons.map((addon) => _buildStatusChip(addon, Icons.add_circle_outline)),
                           ],
                         ),
