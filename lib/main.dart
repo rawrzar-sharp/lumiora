@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'takeout.dart'; 
 import 'menu_page.dart';
+import 'splash.dart'; 
 
 void main() {
   runApp(const MyApp());
@@ -19,7 +20,7 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFEBE5D9),
         primaryColor: const Color(0xFF7B8C2A),
       ),
-      home: const HomeScreen(),
+      home: const SplashScreen(),
     );
   }
 }
