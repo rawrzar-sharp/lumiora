@@ -1,390 +1,233 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data'; // <-- FIX: Import ini yang mengatasi garis merah pada Uint8List
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // Untuk kIsWeb
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 import 'cart_manager.dart';
 
-class PaymentPage extends StatefulWidget {
-  final String orderType; // 'Takeout' atau 'Dine In' dll
+// --- (Global State untuk menyimpan Stamps sementara ke main.dart) ---
+class GlobalState {
+  static int stamps = 0;
+}
 
-  const PaymentPage({super.key, required this.orderType});
+class PaymentPage extends StatefulWidget {
+  final String orderType;
+  final int totalAmount; 
+  final int stampsEarned; 
+
+  const PaymentPage({
+    super.key, 
+    required this.orderType, 
+    required this.totalAmount, 
+    required this.stampsEarned
+  });
 
   @override
   State<PaymentPage> createState() => _PaymentPageState();
 }
 
 class _PaymentPageState extends State<PaymentPage> {
-  // Warna tema sesuai dengan main.dart & takeout.dart
   final Color primaryGreen = const Color(0xFF7B8C2A);
-  final Color lightGreenCard = const Color(0xFFDCE2B9);
   final Color darkGrey = const Color(0xFF4A4D4A);
-  final Color textDark = const Color(0xFF2C3028);
-  final Color baseCream = const Color(0xFFEBE5D9);
 
-  String _selectedPaymentMethod = 'QRIS'; // Default checkout ala Shopee
-  bool _hasUploadedProof = false; // Status upload bukti bayar
+  String _selectedPaymentMethod = 'QRIS';
+  
+  // --- VARIABEL UNTUK IMAGE PICKER ---
+  File? _imageFile;
+  Uint8List? _webImageBytes;
+  final ImagePicker _picker = ImagePicker();
 
-  // Ambil data item belanja langsung dari CartManager
-  List<Map<String, dynamic>> get _cartItems => CartManager.instance.items;
-
-  // --- KALKULASI TOTAL HARGA ---
-  double get _subtotal {
-    return _cartItems.fold(0, (sum, item) {
-      double price = double.tryParse(item['price'].toString()) ?? 0;
-      int qty = item['quantity'] ?? 1;
-      return sum + (price * qty);
-    });
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        if (kIsWeb) {
+          final bytes = await pickedFile.readAsBytes();
+          setState(() => _webImageBytes = bytes);
+        } else {
+          setState(() => _imageFile = File(pickedFile.path));
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error picking image: $e"), backgroundColor: Colors.red),
+      );
+    }
   }
 
-  // Pajak atau biaya layanan (opsional, diset 0 jika ingin murni total)
-  double get _serviceFee => 2000;
-  double get _totalPayment => _subtotal + _serviceFee;
+  String _formatRp(int amount) => 'Rp ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
 
-  // --- ISSUE #4: STAMPS CALCULATION ---
-  // Aturan: Setiap kelipatan Rp 10.000 mendapatkan 1 Stamp
-  int get _calculatedStamps {
-    return (_totalPayment / 10000).floor();
-  }
-
-  // --- SIMULASI UPLOAD BUKTI BAYAR ---
-  void _pickProofImage() {
-    setState(() {
-      _hasUploadedProof = true;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Payment proof successfully uploaded!"),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  // --- ISSUE #9: POPUP RECEIPT (DIALOG SETRUK DIGITAL) ---
-  void _showReceiptPopup() {
+  void _showSuccessDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false, // User wajib menekan tombol tutup
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Column(
-            children: [
-              Icon(Icons.check_circle, color: primaryGreen, size: 50),
-              const SizedBox(height: 8),
-              const Text(
-                "Payment Receipt",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-              const Divider(),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                // Info Status & Tipe
-                _buildReceiptRow("Status", "SUCCESS", valueColor: Colors.green, isBold: true),
-                _buildReceiptRow("Order Type", widget.orderType),
-                _buildReceiptRow("Payment Method", _selectedPaymentMethod),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                  child: Divider(height: 1, thickness: 1, color: Colors.grey),
-                ),
-                
-                // Daftar Item (Tanpa Gambar Produk)
-                const Text(
-                  "Items Ordered:",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                const SizedBox(height: 4),
-                ..._cartItems.map((item) {
-                  int itemQty = item['quantity'] ?? 1;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2.0),
-                    child: Text(
-                      "${item['name']} (x$itemQty)",
-                      style: TextStyle(fontSize: 13, color: darkGrey),
-                    ),
-                  );
-                }).toList(),
-
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                  child: Divider(height: 1, thickness: 1, color: Colors.grey),
-                ),
-
-                // Rincian Harga & Stamps
-                _buildReceiptRow("Total Price", "Rp ${_totalPayment.toStringAsFixed(0)}", isBold: true),
-                _buildReceiptRow(
-                  "Stamps Received", 
-                  "+$_calculatedStamps Stamps", 
-                  valueColor: Colors.orange.shade700, 
-                  isBold: true
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryGreen,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                minimumSize: const Size(double.infinity, 44),
-              ),
-              onPressed: () {
-                // Bersihkan Keranjang setelah sukses bayar
-                // Pastikan fungsi clear() ada di CartManager Anda jika ingin digunakan
-                Navigator.pop(context); // Tutup Dialog
-                Navigator.pop(context); // Kembali dari Halaman Payment
-              },
-              child: const Text("Finish & Back", style: TextStyle(color: Colors.white)),
-            )
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Column(
+          children: [
+            Icon(Icons.check_circle, color: primaryGreen, size: 60),
+            const SizedBox(height: 10),
+            const Text("Payment Successful!", style: TextStyle(fontWeight: FontWeight.bold)),
           ],
-        );
-      },
-    );
-  }
-
-  Widget _buildReceiptRow(String label, String value, {Color? valueColor, bool isBold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: valueColor ?? textDark,
-            ),
-          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("Order Type: ${widget.orderType}"),
+            Text("Method: $_selectedPaymentMethod"),
+            const SizedBox(height: 10),
+            Text("+ ${widget.stampsEarned} Stamps Added!", style: TextStyle(color: Colors.orange.shade700, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, minimumSize: const Size(double.infinity, 45)),
+            onPressed: () {
+              // 1. Simpan stamps ke memory 
+              GlobalState.stamps += widget.stampsEarned;
+              
+              // 2. Bersihkan Cart
+              CartManager.instance.clear(); 
+              
+              // 3. Kembali Langsung ke Main Page (Home)
+              Navigator.popUntil(context, (route) => route.isFirst);
+            },
+            child: const Text("Back to Home", style: TextStyle(color: Colors.white)),
+          )
         ],
       ),
     );
   }
 
+  void _processPayment() {
+    // Validasi Image Upload jika milih QRIS
+    if (_selectedPaymentMethod == 'QRIS' && _imageFile == null && _webImageBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠️ Please upload your payment proof image!'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    
+    // Jika lolos validasi, tampilkan sukses
+    _showSuccessDialog();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: baseCream,
+      backgroundColor: const Color(0xFFF4F1E1),
       appBar: AppBar(
-        title: const Text("Checkout / Payment", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: primaryGreen,
-        foregroundColor: Colors.white,
+        title: const Text("Payment", style: TextStyle(fontWeight: FontWeight.w900)),
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: darkGrey,
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // TOTAL SUMMARY 
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: primaryGreen, borderRadius: BorderRadius.circular(16)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Total Payable", style: TextStyle(color: Colors.white, fontSize: 16)),
+                  Text(_formatRp(widget.totalAmount), style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            const Text("Select Payment Method", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                children: [
+                  RadioListTile<String>(
+                    title: const Text("QRIS / E-Wallet"),
+                    value: 'QRIS',
+                    groupValue: _selectedPaymentMethod,
+                    activeColor: primaryGreen,
+                    onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
+                  ),
+                  const Divider(height: 1),
+                  RadioListTile<String>(
+                    title: const Text("Pay at Cashier"),
+                    value: 'Cashier',
+                    groupValue: _selectedPaymentMethod,
+                    activeColor: primaryGreen,
+                    onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // TAMPILAN UPLOAD BUKTI UNTUK QRIS 
+            if (_selectedPaymentMethod == 'QRIS') ...[
+              Center(
+                child: Column(
+                  children: [
+                    const Text("Scan this QR Code to Pay", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'assets/images/image_9cb7d4.png',
+                        width: 220, height: 220, fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 220, height: 220, color: Colors.grey.shade300,
+                          child: const Icon(Icons.qr_code, size: 80),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text("Upload Payment Proof", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+
+                    // PREVIEW IMAGE YANG DI-UPLOAD
+                    if (!kIsWeb && _imageFile != null)
+                      ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(_imageFile!, height: 120, fit: BoxFit.cover))
+                    else if (kIsWeb && _webImageBytes != null)
+                      ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.memory(_webImageBytes!, height: 120, fit: BoxFit.cover))
+                    else
+                      Container(
+                        height: 100, width: double.infinity,
+                        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+                        child: const Center(child: Text("No image selected", style: TextStyle(color: Colors.grey))),
+                      ),
+                    
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _pickImage,
+                      icon: Icon(Icons.image, color: primaryGreen),
+                      label: Text("Pick Image from Gallery", style: TextStyle(color: primaryGreen)),
+                      style: OutlinedButton.styleFrom(side: BorderSide(color: primaryGreen)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- RINGKASAN PESANAN ---
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text("Payment Summary", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                        Chip(
-                          label: Text(widget.orderType),
-                          backgroundColor: lightGreenCard,
-                          labelStyle: TextStyle(color: textDark, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("Subtotal Products (${_cartItems.length} Item)", style: TextStyle(color: darkGrey)),
-                        Text("Rp ${_subtotal.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("Service Fee/System Fee", style: TextStyle(color: darkGrey)),
-                        Text("Rp ${_serviceFee.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text("Total Payment", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        Text(
-                          "Rp ${_totalPayment.toStringAsFixed(0)}", 
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: primaryGreen)
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // --- PILIHAN METODE PEMBAYARAN ---
-              const Text("Choose Payment Method", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                child: Column(
-                  children: [
-                    RadioListTile<String>(
-                      title: const Text("QRIS / GoPay / OVO / Dana"),
-                      subtitle: const Text("Scan QR Code GPN Mandiri"),
-                      value: 'QRIS',
-                      groupValue: _selectedPaymentMethod,
-                      activeColor: primaryGreen,
-                      onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
-                    ),
-                    const Divider(height: 1),
-                    RadioListTile<String>(
-                      title: const Text("Pay at the Cashier (Cash)"),
-                      subtitle: const Text("Directly complete the payment at the counter"),
-                      value: 'Cashier',
-                      groupValue: _selectedPaymentMethod,
-                      activeColor: primaryGreen,
-                      onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // --- STATIS QR CODE GPN & UPLOAD BUKTI ---
-              if (_selectedPaymentMethod == 'QRIS') ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                  child: Column(
-                    children: [
-                      const Text(
-                        "Please scan the QRIS code for Sir Law below:",
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey),
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      // --- MENAMPILKAN GAMBAR QRIS GPN (UPDATED PATH) ---
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          'assets/images/qris_gpn_sirlaw.png', // <-- PATH SUDAH DIUPDATE DI SINI
-                          width: 240,
-                          height: 240,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 240,
-                              height: 240,
-                              color: Colors.grey.shade300,
-                              child: Center(
-                                child: Text(
-                                  "QRIS image not found.\nPlease ensure the path in pubspec.yaml is correct:\nassets/images/qris_gpn_sirlaw.png",
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(fontSize: 11, color: Colors.red),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 16),
-                      const Text(
-                        "Already transferred? You must upload the payment proof:",
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Tombol Unggah Bukti
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _hasUploadedProof ? Colors.grey : Colors.amber.shade700,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: _pickProofImage,
-                        icon: Icon(_hasUploadedProof ? Icons.check : Icons.cloud_upload),
-                        label: Text(_hasUploadedProof ? "Proof Uploaded" : "Upload Proof Image"),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // --- ESTIMASI PEROLEHAN STAMPS ---
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.stars, color: Colors.orange.shade700),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        "You will receive +$_calculatedStamps Stamps from this transaction!",
-                        style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // --- BUTTON KONFIRMASI BAYAR ---
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryGreen,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () {
-                    // Validasi: Jika memilih QRIS tapi belum upload bukti transfer
-                    if (_selectedPaymentMethod == 'QRIS' && !_hasUploadedProof) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("⚠️ You must upload the payment proof first!"),
-                          backgroundColor: Colors.redAccent,
-                        ),
-                      );
-                      return;
-                    }
-
-                    // Jika valid, munculkan Popup Receipt
-                    _showReceiptPopup();
-                  },
-                  child: const Text(
-                    "Confirm Payment",
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-            ],
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryGreen, 
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+            ),
+            onPressed: _processPayment,
+            child: const Text("Confirm & Finish", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
           ),
         ),
       ),
