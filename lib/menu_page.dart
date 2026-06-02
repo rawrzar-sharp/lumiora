@@ -192,7 +192,7 @@ class _MenuPageState extends State<MenuPage> {
                       ),
                       const Row(
                         children: [
-                          Text('View Basket', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)),
+                          Text('View Cart', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)),
                           SizedBox(width: 6),
                           Icon(Icons.arrow_forward_ios, color: Colors.white, size: 14),
                         ],
@@ -357,31 +357,14 @@ class _MenuPageState extends State<MenuPage> {
                     IconButton(
                       icon: Icon(Icons.add_circle, color: primaryGreen, size: 32), 
                       onPressed: () {
-                        // CEK MODIFIERS SAAT DIKLIK (Issue #2)
                         final List spiceOpts = item['spiceOptions'] ?? [];
                         final Map addonOpts = item['addonOptions'] ?? {};
                         
                         if (spiceOpts.isNotEmpty || addonOpts.isNotEmpty) {
-                          // Buka popup jika ada modifier
                           _showModifierSheet(context, item);
+                          // Buka popup jika ada modifier
                         } else {
-                          // Langsung masuk keranjang jika tanpa modifier + mempertahankan SnackBar
-                          CartManager.instance.addItem(item);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('${item['name']} added to basket'),
-                              duration: const Duration(milliseconds: 1500),
-                              action: SnackBarAction(
-                                label: 'View Basket',
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const TakeoutPage()),
-                                  );
-                                },
-                              ),
-                            ),
-                          );
+                            CartManager.instance.addItem(item); 
                         }
                       },
                     ),
@@ -477,30 +460,18 @@ class _MenuPageState extends State<MenuPage> {
                     onPressed: () {
                       CartManager.instance.addItem(tempItem);
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${tempItem['name']} added to basket'), 
-                          duration: const Duration(milliseconds: 1500),
-                          action: SnackBarAction(
-                            label: 'View Basket',
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const TakeoutPage()),
-                              );
-                            },
-                          ),
-                        ),
-                      );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryGreen,
                       minimumSize: const Size(double.infinity, 48),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text("Add to Basket", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                  ),
-                ],
+                    child: const Text(
+                      "Add to Cart", 
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)
+                    ),
+                  ),    
+                  ],
               ),
             );
           }
