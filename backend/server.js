@@ -4,26 +4,27 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-// Pastikan ini ada di atas semua route
+
+// Perbaikan: Cukup panggil CORS sekali
 app.use(cors({ origin: "*" }));
-app.use(cors());
 app.use(express.json());
 
 // Initialize MySQL Database Connection Pool
 const pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'lumiora',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
 });
 
-// Helper: Generate Unique Order Number matching presentation requirements
+// Helper: Generate Unique Order Number (Menghasilkan Hex asli jika diinginkan)
 function generateOrderNumber() {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const randomHex = Math.floor(1000 + Math.random() * 9000);
+    // Menghasilkan nilai acak berbasis Hex agar sesuai dengan nama variabelnya
+    const randomHex = Math.floor(4096 + Math.random() * 61440).toString(16).toUpperCase(); 
     return `LUM-${today}-${randomHex}`;
 }
 
@@ -37,8 +38,11 @@ app.post('/api/orders', async (req, res) => {
     return res.status(400).json({ success: false, error: "Missing required order payloads" });
   }
 
-  const connection = await pool.getConnection();
+  // Perbaikan: deklarasikan variabel di luar, isi di dalam try-catch
+  let connection;
+  
   try {
+    connection = await pool.getConnection(); // Lebih aman di dalam blok try
     await connection.beginTransaction();
     const orderNumber = generateOrderNumber();
 
@@ -49,17 +53,26 @@ app.post('/api/orders', async (req, res) => {
     );
     const insertId = orderResult.insertId;
 
-    const itemInsertQuery = `INSERT INTO order_items (order_id, menu_item_id, quantity, price_at_sale) VALUES (?, ?, ?, ?)`;
+    // Perbaikan: Pastikan kolom di database Anda sanggup menyimpan text/JSON jika ingin mencatat customizations
+    const itemInsertQuery = `
+      INSERT INTO order_items (order_id, menu_item_id, quantity, price_at_sale, customizations) 
+      VALUES (?, ?, ?, ?, ?)
+    `;
+    
     for (const item of items) {
-      // Defensive: fallback ke null bukan undefined supaya driver tidak crash
       const menuItemId = item.menu_item_id ?? null;
       const qty        = item.quantity ?? 1;
-      const price      = item.price_at_sale ?? item.price ?? 0;  // backward compatible
+      const price      = item.price_at_sale ?? item.price ?? 0;
+      
+      // Ambil objek kustomisasi dari Flutter payload
+      const customizations = item.customizations ? JSON.stringify(item.customizations) : null;
 
       if (menuItemId == null) {
         throw new Error(`Missing menu_item_id for item: ${JSON.stringify(item)}`);
       }
-      await connection.execute(itemInsertQuery, [insertId, menuItemId, qty, price]);
+      
+      // Eksekusi query dengan menyertakan string kustomisasi JSON
+      await connection.execute(itemInsertQuery, [insertId, menuItemId, qty, price, customizations]);
     }
 
     await connection.commit();
@@ -70,11 +83,11 @@ app.post('/api/orders', async (req, res) => {
       order_number: orderNumber
     });
   } catch (error) {
-    await connection.rollback();
+    if (connection) await connection.rollback();
     console.error("Order Transaction Error:", error);
     res.status(500).json({ success: false, error: error.message || "Internal Database Server Error" });
   } finally {
-    connection.release();
+    if (connection) connection.release();
   }
 });
 
@@ -83,7 +96,6 @@ app.post('/api/orders', async (req, res) => {
 // =========================================================================
 app.get('/api/orders/pending', async (req, res) => {
     try {
-        // Fetch pending orders, joining with categories to help staff identify printer targets
         const [rows] = await pool.execute(`
             SELECT 
                 o.id AS order_id,
@@ -95,6 +107,7 @@ app.get('/api/orders/pending', async (req, res) => {
                 o.created_at,
                 oi.quantity,
                 oi.price_at_sale,
+                oi.customizations,
                 mi.name AS item_name,
                 mc.printer_target
             FROM orders o
@@ -105,7 +118,6 @@ app.get('/api/orders/pending', async (req, res) => {
             ORDER BY o.created_at ASC
         `);
 
-        // Format SQL rows into flat, clean JSON objects for the frontend developer
         const formattedOrders = rows.reduce((acc, current) => {
             let order = acc.find(o => o.order_id === current.order_id);
             if (!order) {
@@ -121,11 +133,17 @@ app.get('/api/orders/pending', async (req, res) => {
                 };
                 acc.push(order);
             }
+            
+            // Parsing kembali teks kustomisasi JSON dari database jika ada
+            let customObj = null;
+            try { if (current.customizations) customObj = JSON.parse(current.customizations); } catch(e){}
+
             order.items.push({
                 name: current.item_name,
                 quantity: current.quantity,
                 price: current.price_at_sale,
-                station: current.printer_target
+                station: current.printer_target,
+                customizations: customObj
             });
             return acc;
         }, []);
@@ -137,7 +155,7 @@ app.get('/api/orders/pending', async (req, res) => {
     }
 });
 
-// Add this to server.js to feed dynamic menu data back to Flutter
+// Endpoint Fetch Menu Data back to Flutter
 app.get('/api/menu', async (req, res) => {
   try {
     const [rows] = await pool.execute('SELECT * FROM menu_items WHERE is_available = 1');
