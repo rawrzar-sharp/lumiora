@@ -4,6 +4,8 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+// Pastikan ini ada di atas semua route
+app.use(cors({ origin: "*" }));
 app.use(cors());
 app.use(express.json());
 
@@ -137,12 +139,14 @@ app.get('/api/orders/pending', async (req, res) => {
 
 // Add this to server.js to feed dynamic menu data back to Flutter
 app.get('/api/menu', async (req, res) => {
-    try {
-        const [rows] = await pool.execute('SELECT * FROM menu_items WHERE is_available = 1');
-        res.status(200).json({ success: true, menu: rows });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
+  try {
+    const [rows] = await pool.execute('SELECT * FROM menu_items WHERE is_available = 1');
+    console.log(`[/api/menu] returned ${rows.length} rows`);
+    res.status(200).json({ success: true, menu: rows });
+  } catch (error) {
+    console.error("Menu Fetch Error:", error);
+    res.status(500).json({ success: false, error: error.message, code: error.code });
+  }
 });
 
 // Start the service
