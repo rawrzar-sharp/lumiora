@@ -12,11 +12,15 @@ class MenuPage extends StatefulWidget {
 
 class _MenuPageState extends State<MenuPage> {
   final Color primaryGreen = const Color(0xFF7B8C2A);
+  final Color textDark = const Color(0xFF2C3028);
   final String baseUrl = 'http://localhost:3000';
   List<Map<String, dynamic>> _menu = [];
   bool _loading = true;
   String? _errorMessage;
   
+  // Navigation State to sync with footer layout
+  int _bottomNavIndex = 1; 
+
   // --- VARIABEL UNTUK KATEGORI ---
   String _selectedCategory = 'All';
   List<String> get _categories {
@@ -45,7 +49,6 @@ class _MenuPageState extends State<MenuPage> {
       _errorMessage = null;
     });
     try {
-      // Menambahkan timeout 10 detik agar loading tidak menggantung selamanya
       final res = await http.get(Uri.parse('$baseUrl/api/menu')).timeout(
         const Duration(seconds: 10),
         onTimeout: () => http.Response('{"success":false,"error":"Connection Timeout"}', 408),
@@ -145,69 +148,235 @@ class _MenuPageState extends State<MenuPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F1E1),
-      appBar: AppBar(
-        title: const Text('MENU', style: TextStyle(fontWeight: FontWeight.w900)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: _buildBody(),
-      bottomNavigationBar: CartManager.instance.count > 0
-          ? SafeArea(
-              child: GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const TakeoutPage()),
-                ),
-                child: Container(
-                  margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: primaryGreen,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(color: primaryGreen.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6)),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 28),
-                          const SizedBox(width: 12),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${CartManager.instance.count} Item${CartManager.instance.count > 1 ? 's' : ''}',
-                                style: const TextStyle(color: Color(0xFFE2E9C5), fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
-                              Text(_formatRp(_cartSubtotal),
-                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900),
-                              ),
-                            ],
+      body: SafeArea(
+        top: true, 
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: Stack(
+                children: [
+                  _buildBody(),
+                  
+                  // --- FIXED FLOATING CART BAR OVERFLOW PROTECTION ---
+                  if (CartManager.instance.count > 0)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 10,
+                      child: SafeArea(
+                        child: GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const TakeoutPage()),
                           ),
-                        ],
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: primaryGreen,
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primaryGreen.withOpacity(0.4), 
+                                  blurRadius: 12, 
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Left side packed inside an Expanded wrapper to give it explicit bounded parameters
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 28),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${CartManager.instance.count} Item${CartManager.instance.count > 1 ? 's' : ''}',
+                                              style: const TextStyle(color: Color(0xFFE2E9C5), fontSize: 12, fontWeight: FontWeight.w600),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Text(
+                                              _formatRp(_cartSubtotal),
+                                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12), // Safe clearance gap
+                                const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text('View Cart', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)),
+                                    SizedBox(width: 6),
+                                    Icon(Icons.arrow_forward_ios, color: Colors.white, size: 14),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                      const Row(
-                        children: [
-                          Text('View Cart', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)),
-                          SizedBox(width: 6),
-                          Icon(Icons.arrow_forward_ios, color: Colors.white, size: 14),
-                        ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: _buildFAB(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      color: const Color(0xFFF4F1E1),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFB59A57), width: 1.5),
+                ),
+                child: const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        left: 13,
+                        top: 4,
+                        child: Text(
+                          'L',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontFamily: 'serif',
+                            fontWeight: FontWeight.w400,
+                            color: Color(0xFFB59A57),
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 10,
+                        bottom: 11,
+                        child: Icon(
+                          Icons.spa, 
+                          size: 15, 
+                          color: Color(0xFFB59A57),
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-            )
-          : null,
+              const SizedBox(width: 16),
+              Text(
+                'Menu',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: textDark,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            height: 1.5,
+            width: double.infinity,
+            color: const Color(0xFFB59A57).withOpacity(0.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFAB() {
+    return FloatingActionButton(
+      onPressed: () {},
+      backgroundColor: primaryGreen,
+      shape: const CircleBorder(),
+      child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return BottomAppBar(
+      shape: const CircularNotchedRectangle(),
+      notchMargin: 8.0,
+      color: const Color(0xFFEBE5D9),
+      elevation: 10,
+      child: SizedBox(
+        height: 65,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildNavItem(Icons.home_filled, 'Home', 0, onTap: () {
+              setState(() => _bottomNavIndex = 0);
+              Navigator.pop(context); 
+            }),
+            _buildNavItem(Icons.local_cafe, 'Menu', 1, onTap: () {
+              setState(() => _bottomNavIndex = 1);
+            }),
+            const SizedBox(width: 48), 
+            _buildNavItem(Icons.receipt_long, 'History', 2, onTap: () => setState(() => _bottomNavIndex = 2)),
+            _buildNavItem(Icons.person, 'Profile', 3, onTap: () => setState(() => _bottomNavIndex = 3)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, int index, {required VoidCallback onTap}) {
+    final isActive = _bottomNavIndex == index;
+    final color = isActive ? primaryGreen : Colors.grey.shade500;
+    return Expanded(
+      child: MenuHoverBounceWrapper(
+        onTap: onTap,
+        child: Container(
+          color: Colors.transparent,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(height: 4),
+              // --- FIXED NAV TEXT TRUNCATION GUARD ---
+              Text(
+                label, 
+                style: TextStyle(fontSize: 11, color: color, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildBody() {
-    // Skenario 1: Sedang Loading
     if (_loading) {
       return Center(
         child: Column(
@@ -224,7 +393,6 @@ class _MenuPageState extends State<MenuPage> {
       );
     }
 
-    // Skenario 2: Terjadi Eror Koneksi / Database Error
     if (_errorMessage != null) {
       return Center(
         child: Padding(
@@ -261,7 +429,6 @@ class _MenuPageState extends State<MenuPage> {
       );
     }
 
-    // Skenario 3: Data Kosong
     if (_menu.isEmpty) {
       return Center(
         child: Column(
@@ -277,7 +444,6 @@ class _MenuPageState extends State<MenuPage> {
       );
     }
 
-    // Skenario 4: Berhasil Menampilkan Menu dengan Split Layout
     final filteredMenu = _selectedCategory == 'All'
         ? _menu
         : _menu.where((item) => item['category'] == _selectedCategory).toList();
@@ -285,7 +451,6 @@ class _MenuPageState extends State<MenuPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // KIRI: KATEGORI
         Container(
           width: 90,
           color: Colors.white,
@@ -313,11 +478,9 @@ class _MenuPageState extends State<MenuPage> {
             },
           ),
         ),
-        
-        // KANAN: DAFTAR ITEM 
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 80), 
             itemCount: filteredMenu.length,
             itemBuilder: (c, i) {
               final item = filteredMenu[i];
@@ -362,7 +525,6 @@ class _MenuPageState extends State<MenuPage> {
                         
                         if (spiceOpts.isNotEmpty || addonOpts.isNotEmpty) {
                           _showModifierSheet(context, item);
-                          // Buka popup jika ada modifier
                         } else {
                             CartManager.instance.addItem(item); 
                         }
@@ -378,9 +540,7 @@ class _MenuPageState extends State<MenuPage> {
     );
   }
 
-  // --- TAMBAHAN FUNGSI MODIFIERS BOTTOM SHEET ---
   void _showModifierSheet(BuildContext context, Map<String, dynamic> originalItem) {
-    // Membuat salinan item agar tidak mengubah data original database di UI
     final Map<String, dynamic> tempItem = Map<String, dynamic>.from(originalItem);
     tempItem['selectedAddons'] = List<String>.from(originalItem['selectedAddons'] ?? []);
 
@@ -471,12 +631,50 @@ class _MenuPageState extends State<MenuPage> {
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)
                     ),
                   ),    
-                  ],
+                ],
               ),
             );
-          }
+          },
         );
       },
+    );
+  }
+}
+
+class MenuHoverBounceWrapper extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  const MenuHoverBounceWrapper({Key? key, required this.child, this.onTap}) : super(key: key);
+
+  @override
+  State<MenuHoverBounceWrapper> createState() => _MenuHoverBounceWrapperState();
+}
+
+class _MenuHoverBounceWrapperState extends State<MenuHoverBounceWrapper> {
+  bool _isHovering = false;
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final double scale = _isPressed ? 0.95 : (_isHovering ? 1.02 : 1.0);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      cursor: widget.onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) {
+          setState(() => _isPressed = false);
+          if (widget.onTap != null) widget.onTap!();
+        },
+        onTapCancel: () => setState(() => _isPressed = false),
+        child: AnimatedScale(
+          scale: scale,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeInOut,
+          child: widget.child,
+        ),
+      ),
     );
   }
 }
