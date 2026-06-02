@@ -8,7 +8,7 @@ class CartManager extends ChangeNotifier {
   List<Map<String, dynamic>> get items => _items;
 
   bool get isEmpty => _items.isEmpty;
-  int get count => _items.fold<int>(0, (s, e) => s + (e['quantity'] as int));
+ int get count => _items.fold<int>(0, (s, e) => s + ((e['quantity'] as int?) ?? 0));
 
   void addItem(Map<String, dynamic> menuItem) {
     // Cari item identik (id sama + customization sama) → naikkan qty
