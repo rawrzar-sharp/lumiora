@@ -36,26 +36,41 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   late List<Animation<double>> _blockFades;
   late List<Animation<double>> _blockRotations;
   late List<Animation<double>> _blockScales;
+@override
+void initState() {
+  super.initState();
 
-  @override
-  void initState() {
-    super.initState();
+  // 1. Inisialisasi Controller
+  _mainController = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 3),
+  );
 
-    // UPDATED: Duration reduced to 10 seconds
-    _mainController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    );
+  // 2. Definisi Animasi DULU
+  _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+    CurvedAnimation(parent: _mainController, curve: const Interval(0.2, 0.4, curve: Curves.easeIn)),
+  );
+  _logoScale = Tween<double>(begin: 0.5, end: 1.0).animate(
+    CurvedAnimation(parent: _mainController, curve: const Interval(0.2, 0.5, curve: Curves.elasticOut)),
+  );
+  _textFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+    CurvedAnimation(parent: _mainController, curve: const Interval(0.4, 0.6, curve: Curves.easeIn)),
+  );
 
-    _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _mainController, curve: const Interval(0.2, 0.4, curve: Curves.easeIn)),
-    );
-    _logoScale = Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(parent: _mainController, curve: const Interval(0.2, 0.5, curve: Curves.elasticOut)),
-    );
-    _textFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _mainController, curve: const Interval(0.4, 0.6, curve: Curves.easeIn)),
-    );
+  // 3. Tambahkan listener untuk navigasi saat animasi selesai
+  _mainController.addStatusListener((status) {
+    if (status == AnimationStatus.completed) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+    }
+  });
+
+  // 4. Jalankan animasi
+  _mainController.forward();
+
+
 
     _blockSlides = [];
     _blockFades = [];

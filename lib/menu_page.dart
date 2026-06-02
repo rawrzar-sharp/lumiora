@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'cart_manager.dart';
-import 'takeout.dart';
+import 'cart.dart';
 
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
@@ -91,14 +91,14 @@ class _MenuPageState extends State<MenuPage> {
         });
       } else {
         setState(() {
-          _errorMessage = 'Server Error (${res.statusCode}). Periksa apakah backend Node.js bermasalah.';
+          _errorMessage = 'Server Error (${res.statusCode}). Check if theres an issue behind this :3';
           _loading = false;
         });
       }
     } catch (e) {
       debugPrint('Menu fetch error: $e');
       setState(() {
-        _errorMessage = 'Gagal terhubung ke database. Pastikan server backend Anda sudah menyala di port 3000.\nDetail: $e';
+        _errorMessage = 'Fail to Connect, Please Reset to ensure connection is correct.\nDetail: $e';
         _loading = false;
       });
     }
@@ -168,7 +168,7 @@ class _MenuPageState extends State<MenuPage> {
                         child: GestureDetector(
                           onTap: () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const TakeoutPage()),
+                            MaterialPageRoute(builder: (context) => const CartPage()),
                           ),
                           child: Container(
                             margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -385,7 +385,7 @@ class _MenuPageState extends State<MenuPage> {
             CircularProgressIndicator(color: primaryGreen, strokeWidth: 4),
             const SizedBox(height: 16),
             Text(
-              'Menghubungkan ke Lumiora Database...',
+              'Connecting to Lumiora...',
               style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold),
             ),
           ],
@@ -438,7 +438,7 @@ class _MenuPageState extends State<MenuPage> {
             const SizedBox(height: 16),
             const Text('Menu Belum Tersedia', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text('Database kosong atau tidak ada menu aktif.', style: TextStyle(color: Colors.grey)),
+            const Text('Nothing here, No menu here, Start browsing today!', style: TextStyle(color: Colors.grey)),
           ],
         ),
       );
