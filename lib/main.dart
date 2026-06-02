@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'takeout.dart'; 
+import 'takeout.dart';
 import 'menu_page.dart';
-import 'splash.dart'; 
+import 'splash.dart';
 
 void main() {
   runApp(const MyApp());
@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFEBE5D9),
         primaryColor: const Color(0xFF7B8C2A),
       ),
-      home: const SplashScreen(),
+      home: const HomeScreen(),
     );
   }
 }
@@ -41,6 +41,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   int _bottomNavIndex = 0;
   bool _isTrioActive = true;
 
+  // --- ISSUE #12: Initialize stamps to 0 ---
+  int stamps = 0; 
+
+  // --- ISSUE #4 & #9: Function to add stamps (to be called after payment) ---
+  void addStampsFromPayment(int totalTransaction) {
+    setState(() {
+      int earnedStamps = (totalTransaction / 50000).floor(); 
+      stamps += earnedStamps;
+    });
+  }
+
+  // --- ISSUE #1: Updated Menu Data (Rafdah Menu applied to Duo/Trio for now as placeholders, 
+  // you may need to adjust image paths if you don't have them yet) ---
   final List<Map<String, String>> trioProducts = [
     {'title': 'Trio Cafe', 'desc': 'Triple the drinks.\nTriple the fun.', 'price': 'Rp 50.000', 'rating': '5.0', 'img': 'assets/images/prod_trio_cafe.png'},
     {'title': 'Triple Brew', 'desc': 'Matcha, Choco, and\nCoffee', 'price': 'Rp 65.000', 'rating': '5.0', 'img': 'assets/images/prod_triple_brew.png'},
@@ -48,9 +61,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     {'title': 'Brunch Deals', 'desc': 'Vanilla latte, Cappuccino,\nand Sando', 'price': 'Rp 45.000', 'rating': '5.0', 'img': 'assets/images/prod_brunch_deals.png'},
   ];
 
+  // Updated Duo products based on your image (Issue #11)
   final List<Map<String, String>> duoProducts = [
-    {'title': 'Duo Boost', 'desc': 'Double Espresso & \nAmericano', 'price': 'Rp 35.000', 'rating': '4.8', 'img': 'assets/images/prod_coffee_splash.png'},
-    {'title': 'Sweet Pair', 'desc': 'Mocha & Caramel \nMacchiato', 'price': 'Rp 40.000', 'rating': '4.9', 'img': 'assets/images/prod_triple_brew.png'},
+    {'title': 'Duo Cafe', 'desc': 'Start work with your\nfave latte cup.', 'price': 'Rp 25.000', 'rating': '4.8', 'img': 'assets/images/prod_coffee_splash.png'},
+    {'title': 'Twin-Flavors', 'desc': 'Caramel macchiato\n+ Latte', 'price': 'Rp 30.000', 'rating': '4.9', 'img': 'assets/images/prod_triple_brew.png'},
+    {'title': 'Sit Down Deals', 'desc': 'Lava Hazelnut + Croissant', 'price': 'Rp 18.000', 'rating': '4.7', 'img': 'assets/images/prod_brunch_deals.png'}, // Placeholder image
+    {'title': 'Dual Brews', 'desc': 'Cappuccino + Matcha', 'price': 'Rp 38.000', 'rating': '4.8', 'img': 'assets/images/prod_triple_brew.png'}, // Placeholder image
   ];
 
   @override
@@ -87,9 +103,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   const SizedBox(height: 20),
                   _buildProductGrid(),
                   const SizedBox(height: 20),
-                  _buildGrandFeastBanner(), // Fungsi Banner ter-update di bawah
+                  _buildGrandFeastBanner(), 
+                  const SizedBox(height: 16), 
+
+                  // --- ISSUE #11: Duo Cards added below Grand Feast ---
+                  _buildHorizontalDuoCards(),
+
                   const SizedBox(height: 20),
-                  _buildHalalFooter(),
+
+                  // --- ISSUE #10: Halal Card added at the bottom ---
+                  _buildHalalFooterCard(),
+
                   const SizedBox(height: 40),
                 ],
               ),
@@ -135,7 +159,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   const SizedBox(height: 6), 
                   Row(
                     children: [
-                      _buildStatBadge(Icons.workspace_premium, '123', 'Stamps'),
+                      // --- ISSUE #12: Display the dynamic stamps variable here ---
+                      _buildStatBadge(Icons.workspace_premium, stamps.toString(), 'Stamps'), 
                       const SizedBox(width: 12),
                       _buildStatBadge(Icons.confirmation_num, '1', 'Vouchers'),
                     ],
@@ -346,61 +371,137 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  // 💡 FIX BUG #6 (B): Mengubah UI Grand Feast Banner agar memuat aset gambar produk di sisi kanan
   Widget _buildGrandFeastBanner() {
-  return HoverBounceWrapper(
-    onTap: () {},
-    child: Container(
-      height: 160, width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8DCC4),
-        borderRadius: BorderRadius.circular(16),
-        image: const DecorationImage(
-          image: AssetImage('assets/images/banner_grand_feast.png'),
-          fit: BoxFit.cover,
+    return HoverBounceWrapper(
+      onTap: () {},
+      child: Container(
+        height: 160, width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8DCC4),
+          borderRadius: BorderRadius.circular(16),
+          image: const DecorationImage(
+            image: AssetImage('assets/images/banner_grand_feast.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              left: 16, top: 20,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Grand\nFeast', style: TextStyle(color: primaryGreen, fontSize: 32, fontFamily: 'serif', fontWeight: FontWeight.bold, height: 1.0)),
+                  const SizedBox(height: 8),
+                  const Text('The Ultimate\nSharing Combo\nfor Everyone', style: TextStyle(color: Colors.black87, fontSize: 12, height: 1.2)),
+                  const SizedBox(height: 12),
+                  const Text('Rp 150.000', style: TextStyle(color: Colors.red, decoration: TextDecoration.lineThrough, fontSize: 10, fontWeight: FontWeight.bold)),
+                  const Text('Rp 105.000', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
+                ],
+              ),
+            ),
+            Positioned(
+              right: 8, bottom: 0, top: 0,
+              child: Image.asset(
+                'assets/images/grand_feast.png',
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+          ],
         ),
       ),
-      child: Stack(
+    );
+  }
+
+  // --- ISSUE #11: Horizontal Duo Cards Implementation ---
+  Widget _buildHorizontalDuoCards() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
         children: [
-          Positioned(
-            left: 16, top: 20,
+          // Card Duo 1
+          Container(
+            width: 200,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9), 
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Grand\nFeast', style: TextStyle(color: primaryGreen, fontSize: 32, fontFamily: 'serif', fontWeight: FontWeight.bold, height: 1.0)),
-                const SizedBox(height: 8),
-                const Text('The Ultimate\nSharing Combo\nfor Everyone', style: TextStyle(color: Colors.black87, fontSize: 12, height: 1.2)),
-                const SizedBox(height: 12),
-                const Text('Rp 150.000', style: TextStyle(color: Colors.red, decoration: TextDecoration.lineThrough, fontSize: 10, fontWeight: FontWeight.bold)),
-                const Text('Rp 105.000', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
+                const Text('Tea & Croissant Duo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text('Rp 35.000', style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold)),
               ],
             ),
           ),
-          // 💡 TAMBAH: gambar produk besar di sebelah kanan
-          Positioned(
-            right: 8, bottom: 0, top: 0,
-            child: Image.asset(
-              'assets/images/grand_feast.png',
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          const SizedBox(width: 12),
+          // Card Duo 2
+          Container(
+            width: 200,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Coffee & Cake Duo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text('Rp 40.000', style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold)),
+              ],
             ),
           ),
         ],
       ),
-    ),
-  );
-}
-
-  Widget _buildHalalFooter() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.verified, color: primaryGreen, size: 16),
-        const SizedBox(width: 4),
-        const Text("100% Certified Halal & Higienis", style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
-      ],
     );
   }
+
+  // --- ISSUE #10: Halal Card Implementation ---
+  Widget _buildHalalFooterCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDCE5C5), 
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Placeholder icon, replace with Image.asset if you have the Halal logo
+              const Icon(Icons.mosque, color: Colors.white, size: 40), 
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'HALAL',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  Text(
+                    'INDONESIA',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'ID241103130106',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Widget _buildFAB() {
     return FloatingActionButton(
@@ -427,7 +528,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               setState(() => _bottomNavIndex = 1);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const MenuPage()));
             }),
-            const SizedBox(width: 60), // ruang untuk FAB notch
+            const SizedBox(width: 60), 
             _buildNavItem(Icons.receipt_long, 'History', 2, onTap: () => setState(() => _bottomNavIndex = 2)),
             _buildNavItem(Icons.person, 'Profile', 3, onTap: () => setState(() => _bottomNavIndex = 3)),
           ],
