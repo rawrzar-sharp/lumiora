@@ -1,7 +1,6 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'cart_manager.dart'; 
+import 'payment.dart'; // <-- IMPORT FILE PAYMENT BARU
 
 class TakeoutPage extends StatefulWidget {
   const TakeoutPage({super.key});
@@ -18,22 +17,21 @@ class _TakeoutPageState extends State<TakeoutPage> {
   final Color lightGreenCard = const Color(0xFFDCE2B9);
   final Color darkGrey = const Color(0xFF4A4D4A);
   
-  final String baseUrl = 'http://localhost:3000'; // <-- FIX: Emulator IP
-  String _selectedPaymentMethod = 'QRIS';
+  // Controller untuk Issue #5 (Optional Notes)
+  final TextEditingController _notesController = TextEditingController();
 
-  // <-- FIX: Baca item langsung dari CartManager
   List<Map<String, dynamic>> get _cartItems => CartManager.instance.items;
 
   @override
   void initState() {
     super.initState();
-   
     CartManager.instance.addListener(_onCartChange);
-      // <-- FIX: Tambahkan item dummy jika cart kosong (untuk testing UI)
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+    
+    // Tambahkan item dummy jika cart kosong (untuk testing UI)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (CartManager.instance.isEmpty) {
         CartManager.instance.addItem({
-          'id': 7, // Menggunakan ID 7 (Iced Sea Salt Latte di Database Anda)
+          'id': 7,
           'name': 'Iced Sea Salt Latte (Dummy Test)',
           'category': 'Beverages',
           'basePrice': 28000,
@@ -43,118 +41,27 @@ class _TakeoutPageState extends State<TakeoutPage> {
         });
       }
     });
-    // ----------------------------------------
   }
 
   @override
   void dispose() {
     CartManager.instance.removeListener(_onCartChange);
+    _notesController.dispose(); // Jangan lupa dispose controller
     super.dispose();
   }
 
   void _onCartChange() => setState(() {});
 
   // =========================================================================
-  // 2. NETWORK OPERATIONS (POST ONLY)
-  // =========================================================================
-
-  Future<void> _sendOrderToBackend() async {
-    const Map<String, String> paymentMap = {
-      'Gopay': 'qris',
-      'OVO': 'qris',
-      'Dana': 'qris',
-      'ShopeePay': 'qris',
-      'LinkAja': 'qris',
-      'QRIS': 'qris',
-      'Debit': 'debit',
-      'Credit Card': 'cc',
-      'Cashier': 'cashier',
-    };
-
-    print("Debug Cart Items: $_cartItems");
-    final List<Map<String, dynamic>> orderItemsPayload = _cartItems.map((item) {
-      final List<dynamic> addons = (item['selectedAddons'] as List<dynamic>?) ?? [];
-      return {
-        'menu_item_id': int.tryParse(item['id'].toString()) ?? 1,
-        'quantity': item['quantity'] ?? 1,
-        'price_at_sale': item['basePrice'] ?? 0, 
-        'customizations': {
-          'preference': item['selectedSpice'] ?? '',
-          'addons': addons,
-        }
-      };
-    }).toList();
-
-    final Map<String, dynamic> checkoutPayload = {
-      'order_type': 'takeaway', 
-      'payment_method': paymentMap[_selectedPaymentMethod] ?? 'qris', 
-      'total_amount': _finalTotal,
-      'items': orderItemsPayload,
-    };
-
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/orders'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(checkoutPayload),
-      );
-
-      final decoded = json.decode(response.body);
-
-      if (decoded is! Map) {
-        _showErrorSnackBar("Unexpected backend response (not an object): $decoded");
-        return;
-      }
-
-      final Map<String, dynamic> result = (decoded as Map).cast<String, dynamic>();
-      final bool success = result['success'] == true;
-
-      if ((response.statusCode == 200 || response.statusCode == 201) && success) {
-        CartManager.instance.clear(); // Bersihkan cart jika sukses
-        _showSuccessDialog(result['order_number']?.toString() ?? 'LUM-XXXX');
-      } else {
-        _showErrorSnackBar("Backend Rejection: ${result['error'] ?? 'Unknown error'}");
-      }
-    } catch (e) {
-      _showErrorSnackBar("Failed to communicate with runtime database: $e");
-    }
-  }
-
-  // =========================================================================
-  // 3. FINANCIAL CALCULATORS & UTILITIES
+  // 2. FINANCIAL CALCULATORS & UTILITIES (Disederhanakan)
   // =========================================================================
   
-  int get _subtotal {
-  int total = 0;
-  for (var item in _cartItems) {
-    int itemCost = (item['basePrice'] as int?) ?? 0;
-    final Map<String, int> addonOpts =
-        Map<String, int>.from((item['addonOptions'] as Map?) ?? {});
-    final List<String> currentAddons =
-        List<String>.from((item['selectedAddons'] as List?) ?? []);
-
-    for (var addon in currentAddons) {
-      itemCost += addonOpts[addon] ?? 0;
-    }
-    total += itemCost * ((item['quantity'] as int?) ?? 1);
-  }
-  return total;
-}
-
-  int get _discount => _subtotal > 50000 ? 15000 : 0;
-  int get _pb1 => (_subtotal * 0.10).round();
-  int get _vat => (_subtotal * 0.11).round();
-  int get _finalTotal => _subtotal - _discount + _pb1 + _vat;
-  
-  // <-- FIX: Stamps clamp 0 sampai 10
-  int get _stampsEarned => _finalTotal > 0 ? (_finalTotal / 30000).floor().clamp(0, 10) : 0;
-
   String _formatRp(int amount) {
     return 'Rp ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
   }
 
   // =========================================================================
-  // 4. USER INTERACTIVE VIEWS
+  // 3. USER INTERACTIVE VIEWS
   // =========================================================================
 
   @override
@@ -184,18 +91,21 @@ class _TakeoutPageState extends State<TakeoutPage> {
                 _buildSectionHeader("PICK UP LOCATION & TIME"),
                 _buildInfoCard(),
                 const SizedBox(height: 24),
-                _buildSectionHeader("YOUR BASKET"),
+                
+                // ISSUE #8: Wording Basket ke Cart
+                _buildSectionHeader("YOUR CART"), 
                 _buildCartItemList(),
                 const SizedBox(height: 24),
-                _buildSectionHeader("LOYALTY REWARDS"),
-                _buildStampSection(),
-                const SizedBox(height: 24),
-                _buildSectionHeader("PAYMENT DETAILS"),
-                _buildPaymentDetailsCard(),
-                const SizedBox(height: 24),
-                _buildSectionHeader("CUSTOMER CONTACT"),
+                
+                // ISSUE #5: Customer Contact & Notes (Optional)
+                _buildSectionHeader("CUSTOMER CONTACT & NOTES"),
                 _buildContactField(),
+                const SizedBox(height: 12),
+                _buildNotesField(),
                 const SizedBox(height: 20),
+                
+                // NOTE: Bagian Loyalty Rewards (Stamps) & Payment Details 
+                // dihapus dari sini karena sudah dipindahkan ke payment.dart
               ],
             ),
           ),
@@ -252,9 +162,10 @@ class _TakeoutPageState extends State<TakeoutPage> {
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
         child: Column(children: const [
-          Icon(Icons.shopping_basket_outlined, size: 60, color: Colors.grey),
+          Icon(Icons.shopping_cart_outlined, size: 60, color: Colors.grey),
           SizedBox(height: 12),
-          Text("Your basket is empty.\nAdd items from the Menu page.",
+          // ISSUE #8: Wording update
+          Text("Your cart is empty.\nAdd items from the Menu page.",
               textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
         ]),
       );
@@ -401,85 +312,29 @@ class _TakeoutPageState extends State<TakeoutPage> {
     ),
   );
 
-  // <-- FIX: Tampilkan 10 slot stamp secara visual
-  Widget _buildStampSection() => Container(
-  padding: const EdgeInsets.all(16),
-  decoration: BoxDecoration(
-    color: Colors.white, borderRadius: BorderRadius.circular(16),
-    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 4))],
-  ),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text("Stamp Accrual Progress", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-          Text("+$_stampsEarned Stamps Pending", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.w900, fontSize: 12)),
-        ],
-      ),
-      const SizedBox(height: 14),
-      // BARIS 1: stamps 1-5
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(5, (i) => _buildStampSlot(i)),
-      ),
-      const SizedBox(height: 8),
-      // BARIS 2: stamps 6-10
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(5, (i) => _buildStampSlot(i + 5)),
-      ),
-    ],
-  ),
-);
-
-Widget _buildStampSlot(int index) {
-  final bool isEarned = index < _stampsEarned;
-  return AnimatedScale(
-    scale: isEarned ? 1.0 : 0.85,
-    duration: const Duration(milliseconds: 300),
-    child: Opacity(
-      opacity: isEarned ? 1.0 : 0.35,
-      child: Image.asset('assets/images/stamp.png', width: 34, height: 34,
-          errorBuilder: (_, __, ___) => Icon(Icons.stars, color: primaryGreen, size: 34)),
-    ),
-  );
-}
-
-  Widget _buildPaymentDetailsCard() => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-    child: Column(
-      children: [
-        _buildRowItem("Items Basket Subtotal", _formatRp(_subtotal)),
-        _buildRowItem("Lumiora Campaign Promo", "- ${_formatRp(_discount)}", valColor: Colors.red),
-        _buildRowItem("Government Local Tax (PB1)", _formatRp(_pb1)),
-        _buildRowItem("Value Added Tax (VAT 11%)", _formatRp(_vat)),
-        const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(thickness: 0.5)),
-        _buildRowItem("Aggregate Total Payable", _formatRp(_finalTotal), isBold: true),
-      ],
-    ),
-  );
-
-  Widget _buildRowItem(String label, String value, {bool isBold = false, Color? valColor}) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(fontWeight: isBold ? FontWeight.w900 : FontWeight.normal, fontSize: isBold ? 14 : 12, color: isBold ? Colors.black : Colors.grey.shade600)),
-        Text(value, style: TextStyle(fontWeight: isBold ? FontWeight.w900 : FontWeight.bold, color: valColor ?? (isBold ? primaryGreen : Colors.black87), fontSize: isBold ? 15 : 12)),
-      ],
-    ),
-  );
-
   Widget _buildContactField() => const TextField(
     style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+    keyboardType: TextInputType.phone,
     decoration: InputDecoration(
       labelText: "PHONE NUMBER FOR SMS VERIFICATION*",
       labelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5),
       border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
       suffixIcon: Icon(Icons.phone_iphone, size: 18),
+      filled: true, fillColor: Colors.white,
+    ),
+  );
+
+  // ISSUE #5: Widget Notes (Optional)
+  Widget _buildNotesField() => TextField(
+    controller: _notesController,
+    maxLines: 2, // Biar agak lebar ke bawah
+    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+    decoration: const InputDecoration(
+      labelText: "NOTES (OPTIONAL)",
+      hintText: "e.g., Less ice, please separate the sugar...",
+      labelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+      suffixIcon: Icon(Icons.edit_note, size: 18),
       filled: true, fillColor: Colors.white,
     ),
   );
@@ -495,42 +350,25 @@ Widget _buildStampSlot(int index) {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.account_balance_wallet, color: primaryGreen, size: 20),
-                  const SizedBox(width: 8),
-                  Text("Paying via $_selectedPaymentMethod", style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF2C3028))),
-                ],
-              ),
-              TextButton(
-                onPressed: _showPaymentMethodSelector,
-                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 30)),
-                child: Text("Change", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold, fontSize: 13)),
-              )
-            ],
-          ),
-          const SizedBox(height: 10),
           HoverBounceWrapper(
             onTap: () {
               if (_cartItems.isEmpty) {
-                _showErrorSnackBar("Your basket is empty.");
+                _showErrorSnackBar("Your cart is empty.");
                 return;
               }
-              // <-- FIX: Tampilkan dialog QRIS dulu sebelum tembak API
-              if (['QRIS', 'Gopay', 'OVO', 'Dana', 'ShopeePay', 'LinkAja'].contains(_selectedPaymentMethod)) {
-                _showQrisDialog();
-              } else {
-                _sendOrderToBackend();
-              }
+              // Navigasi langsung ke file payment.dart
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PaymentPage(orderType: 'Takeout'),
+                ),
+              );
             },
             child: Container(
               width: double.infinity, height: 52,
               decoration: BoxDecoration(color: primaryGreen, borderRadius: BorderRadius.circular(16)),
-              child: Center(
-                child: Text("CONFIRM & PAY ${_formatRp(_finalTotal)}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 0.5)),
+              child: const Center(
+                child: Text("Proceed to Payment", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 0.5)),
               ),
             ),
           ),
@@ -630,108 +468,6 @@ Widget _buildStampSlot(int index) {
           }
         );
       },
-    );
-  }
-
-  void _showPaymentMethodSelector() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final methods = ['QRIS', 'Gopay', 'OVO', 'Dana', 'ShopeePay', 'LinkAja', 'Debit', 'Credit Card', 'Cashier'];
-        return Container(
-          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24))),
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("SELECT PAYMENT PLATFORM", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-                const SizedBox(height: 12),
-                ...methods.map((method) => ListTile(
-                  leading: Icon(Icons.account_balance_wallet_outlined, color: primaryGreen),
-                  title: Text(method, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  trailing: _selectedPaymentMethod == method ? Icon(Icons.check_circle, color: primaryGreen) : null,
-                  onTap: () {
-                    setState(() => _selectedPaymentMethod = method);
-                    Navigator.pop(context);
-                  },
-                )).toList(),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // <-- FIX: Dialog QRIS Statis
-  void _showQrisDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text("Scan QRIS to Pay", style: TextStyle(fontWeight: FontWeight.w900, color: primaryGreen, fontSize: 16)),
-              const SizedBox(height: 12),
-              const Text("Use any QRIS-compatible e-wallet", style: TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(border: Border.all(color: primaryGreen, width: 2), borderRadius: BorderRadius.circular(16)),
-                child: Image.asset('assets/images/qris_static.png', width: 220, height: 220, fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Container(width: 220, height: 220, color: Colors.grey.shade200, child: const Icon(Icons.qr_code_2, size: 100))),
-              ),
-              const SizedBox(height: 16),
-              Text("Total ${_formatRp(_finalTotal)}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 16),
-              HoverBounceWrapper(
-                onTap: () {
-                  Navigator.pop(context); // Tutup dialog QRIS
-                  _sendOrderToBackend();  // Kirim data ke database
-                },
-                child: Container(
-                  width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(color: primaryGreen, borderRadius: BorderRadius.circular(12)),
-                  child: const Center(child: Text("I've Paid – Confirm Order", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showSuccessDialog(String orderNum) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.check_circle, color: primaryGreen),
-            const SizedBox(width: 10),
-            const Text("Order Confirmed", style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Text("Your order has been queued successfully!\n\nOrder No: $orderNum"),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Go back home
-            },
-            child: Text("Awesome", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold)),
-          )
-        ],
-      ),
     );
   }
 
