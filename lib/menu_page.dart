@@ -12,10 +12,17 @@ class MenuPage extends StatefulWidget {
 
 class _MenuPageState extends State<MenuPage> {
   final Color primaryGreen = const Color(0xFF7B8C2A);
-  final String baseUrl = 'http://localhost:3000'; // IP khusus Emulator Android ke localhost komputer
+  final String baseUrl = 'http://localhost:3000';
   List<Map<String, dynamic>> _menu = [];
   bool _loading = true;
   String? _errorMessage;
+  
+  // --- VARIABEL UNTUK KATEGORI ---
+  String _selectedCategory = 'All';
+  List<String> get _categories {
+    final cats = _menu.map((e) => e['category'].toString()).toSet().toList();
+    return ['All', ...cats];
+  }
 
   @override
   void initState() {
@@ -72,9 +79,9 @@ class _MenuPageState extends State<MenuPage> {
               'basePrice': double.tryParse((item['base_price'] ?? 0).toString())?.round() ?? 0,
               'img': _resolveImage(item['name'], item['image_url']),
               'selectedSpice': prefs.isNotEmpty ? prefs[0] : '',
-              'spiceOptions': prefs,                  // SELALU List<String>, tidak null
-              'selectedAddons': <String>[],           // SELALU List<String>, tidak null
-              'addonOptions': addons,                 // SELALU Map<String,int>, tidak null
+              'spiceOptions': prefs,                  
+              'selectedAddons': <String>[],           
+              'addonOptions': addons,                 
             };
           }).toList();
           _loading = false;
@@ -142,30 +149,6 @@ class _MenuPageState extends State<MenuPage> {
         title: const Text('MENU', style: TextStyle(fontWeight: FontWeight.w900)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.shopping_basket),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const TakeoutPage()),
-                ),
-              ),
-              if (CartManager.instance.count > 0)
-                Positioned(
-                  right: 6, top: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                    child: Text('${CartManager.instance.count}',
-                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-            ],
-          ),
-        ],
       ),
       body: _buildBody(),
       bottomNavigationBar: CartManager.instance.count > 0
@@ -294,67 +277,233 @@ class _MenuPageState extends State<MenuPage> {
       );
     }
 
-    // Skenario 4: Berhasil Menampilkan Menu
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _menu.length,
-      itemBuilder: (c, i) {
-        final item = _menu[i];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 14),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Image.asset(
-                  item['img'],
-                  width: 90,
-                  height: 90,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 90, height: 90,
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.fastfood),
+    // Skenario 4: Berhasil Menampilkan Menu dengan Split Layout
+    final filteredMenu = _selectedCategory == 'All'
+        ? _menu
+        : _menu.where((item) => item['category'] == _selectedCategory).toList();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // KIRI: KATEGORI
+        Container(
+          width: 90,
+          color: Colors.white,
+          child: ListView.builder(
+            itemCount: _categories.length,
+            itemBuilder: (context, index) {
+              final cat = _categories[index];
+              final isSelected = cat == _selectedCategory;
+              return InkWell(
+                onTap: () => setState(() => _selectedCategory = cat),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
+                  color: isSelected ? primaryGreen.withOpacity(0.15) : Colors.transparent,
+                  child: Text(
+                    cat,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: isSelected ? primaryGreen : Colors.grey.shade600,
+                      fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              );
+            },
+          ),
+        ),
+        
+        // KANAN: DAFTAR ITEM 
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: filteredMenu.length,
+            itemBuilder: (c, i) {
+              final item = filteredMenu[i];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                child: Row(
                   children: [
-                    Text(item['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-                    Text(item['category'], style: TextStyle(fontSize: 11, color: primaryGreen, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text(_formatRp(item['basePrice']), style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.add_circle, color: primaryGreen, size: 32),
-                onPressed: () {
-                  CartManager.instance.addItem(item);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${item['name']} added to basket'),
-                      duration: const Duration(milliseconds: 1500),
-                      action: SnackBarAction(
-                        label: 'View Basket',
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const TakeoutPage()),
-                          );
-                        },
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.asset(
+                        item['img'],
+                        width: 90, 
+                        height: 90, 
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 90, 
+                          height: 90, 
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.fastfood),
+                        ),
                       ),
                     ),
-                  );
-                },
-              ),
-            ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)), 
+                          Text(item['category'], style: TextStyle(fontSize: 11, color: primaryGreen, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Text(_formatRp(item['basePrice']), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.add_circle, color: primaryGreen, size: 32), 
+                      onPressed: () {
+                        // CEK MODIFIERS SAAT DIKLIK (Issue #2)
+                        final List spiceOpts = item['spiceOptions'] ?? [];
+                        final Map addonOpts = item['addonOptions'] ?? {};
+                        
+                        if (spiceOpts.isNotEmpty || addonOpts.isNotEmpty) {
+                          // Buka popup jika ada modifier
+                          _showModifierSheet(context, item);
+                        } else {
+                          // Langsung masuk keranjang jika tanpa modifier + mempertahankan SnackBar
+                          CartManager.instance.addItem(item);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('${item['name']} added to basket'),
+                              duration: const Duration(milliseconds: 1500),
+                              action: SnackBarAction(
+                                label: 'View Basket',
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const TakeoutPage()),
+                                  );
+                                },
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
+        ),
+      ],
+    );
+  }
+
+  // --- TAMBAHAN FUNGSI MODIFIERS BOTTOM SHEET ---
+  void _showModifierSheet(BuildContext context, Map<String, dynamic> originalItem) {
+    // Membuat salinan item agar tidak mengubah data original database di UI
+    final Map<String, dynamic> tempItem = Map<String, dynamic>.from(originalItem);
+    tempItem['selectedAddons'] = List<String>.from(originalItem['selectedAddons'] ?? []);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            final List<String> spiceOpts = List<String>.from(tempItem['spiceOptions'] ?? []);
+            final Map<String, int> addonOpts = Map<String, int>.from(tempItem['addonOptions'] ?? {});
+            final List<String> itemSelectedAddons = List<String>.from(tempItem['selectedAddons'] ?? []);
+
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFF4F1E1),
+                borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(2)))),
+                  const SizedBox(height: 16),
+                  Text(tempItem['name'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                  Text("Customize your item", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(height: 16),
+                  
+                  if (spiceOpts.isNotEmpty) ...[
+                    Text("PREFERENCES", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: primaryGreen)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: spiceOpts.map<Widget>((opt) {
+                        bool isSel = tempItem['selectedSpice'] == opt;
+                        return ChoiceChip(
+                          label: Text(opt, style: TextStyle(color: isSel ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 12)),
+                          selected: isSel,
+                          selectedColor: primaryGreen,
+                          backgroundColor: Colors.white,
+                          onSelected: (val) => setModalState(() => tempItem['selectedSpice'] = opt),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  if (addonOpts.isNotEmpty) ...[
+                    Text("ADD-ONS", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: primaryGreen)),
+                    const SizedBox(height: 8),
+                    ...addonOpts.keys.map((addonKey) {
+                      bool hasAddon = itemSelectedAddons.contains(addonKey);
+                      int extraCost = addonOpts[addonKey] ?? 0;
+                      return CheckboxListTile(
+                        title: Text(addonKey, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                        subtitle: Text("+ ${_formatRp(extraCost)}", style: TextStyle(color: primaryGreen, fontSize: 11, fontWeight: FontWeight.bold)),
+                        value: hasAddon,
+                        activeColor: primaryGreen,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (bool? checked) {
+                          setModalState(() {
+                            if (checked == true) {
+                              itemSelectedAddons.add(addonKey);
+                            } else {
+                              itemSelectedAddons.remove(addonKey);
+                            }
+                            tempItem['selectedAddons'] = itemSelectedAddons;
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ],
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      CartManager.instance.addItem(tempItem);
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${tempItem['name']} added to basket'), 
+                          duration: const Duration(milliseconds: 1500),
+                          action: SnackBarAction(
+                            label: 'View Basket',
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const TakeoutPage()),
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryGreen,
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text("Add to Basket", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  ),
+                ],
+              ),
+            );
+          }
         );
       },
     );
