@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'cart_manager.dart';
 import 'payment.dart';
-import 'menu_page.dart'; // Required for the Add Menu routing
+import 'menu_page.dart';
 
 class TakeoutPage extends StatefulWidget {
   const TakeoutPage({super.key});
@@ -87,6 +87,42 @@ class _TakeoutPageState extends State<TakeoutPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 
+                // -------------------------------------------------------------
+                // ADDED: LOCATION & DISTANCE COMPONENT
+                // -------------------------------------------------------------
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: lightGreenCard,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_on, color: primaryGreen, size: 28),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Lumiora Coffee - Bekasi Outlet",
+                              style: TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "Distance: 1.2 km (Est. 10-15 mins)", // Translated to English
+                              style: TextStyle(color: darkGrey, fontSize: 12, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // -------------------------------------------------------------
+
                 _buildSectionHeader("ORDER ITEMS"),
                 _buildCartItemList(),
                 
@@ -179,7 +215,24 @@ class _TakeoutPageState extends State<TakeoutPage> {
         }
         String modText = mods.join(' | ');
 
-        String? imageUrl = item['image_url'];
+        // -------------------------------------------------------------
+        // ADDED: ROBUST IMAGE LOGIC FIX
+        // -------------------------------------------------------------
+        String rawImg = (item['image_url'] ?? item['img'] ?? '').toString();
+        String imageUrl = '';
+        bool isAsset = false;
+
+        if (rawImg.isNotEmpty) {
+          if (rawImg.startsWith('http')) {
+            imageUrl = rawImg;
+          } else if (rawImg.startsWith('assets/')) {
+            isAsset = true;
+            imageUrl = rawImg;
+          } else {
+            imageUrl = rawImg.startsWith('/') ? '$baseUrl$rawImg' : '$baseUrl/$rawImg';
+          }
+        }
+        // -------------------------------------------------------------
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -189,12 +242,18 @@ class _TakeoutPageState extends State<TakeoutPage> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: imageUrl != null && imageUrl.isNotEmpty
-                    ? Image.network(
-                        '$baseUrl$imageUrl',
-                        width: 60, height: 60, fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.fastfood, color: Colors.grey)),
-                      )
+                child: imageUrl.isNotEmpty
+                    ? (isAsset 
+                        ? Image.asset(
+                            imageUrl,
+                            width: 60, height: 60, fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.broken_image, color: Colors.grey)),
+                          )
+                        : Image.network(
+                            imageUrl,
+                            width: 60, height: 60, fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.broken_image, color: Colors.grey)),
+                          ))
                     : Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.fastfood, color: Colors.grey)),
               ),
               const SizedBox(width: 12),
