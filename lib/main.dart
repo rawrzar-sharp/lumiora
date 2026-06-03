@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'takeout.dart';
 import 'menu_page.dart';
 import 'splash.dart';
+import 'payment.dart';
 
 void main() {
   runApp(const MyApp());
 }
+
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
@@ -25,6 +27,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -32,7 +35,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   final Color primaryGreen = const Color(0xFF7B8C2A);
   final Color lightGreenCard = const Color(0xFFDCE2B9);
   final Color darkGrey = const Color(0xFF4A4D4A);
@@ -41,9 +44,210 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   int _bottomNavIndex = 0;
   bool _isTrioActive = true;
 
-  // Track state for user interactive experience
-  int stamps = 4; 
-  bool bonusClaimed = false;
+  @override
+  void initState() {
+    super.initState();
+    
+    // 🔥 PERBAIKAN POP-UP: Cek apakah ada hadiah setelah kembali dari pembayaran
+    if (GlobalState.showRewardPopup) {
+      GlobalState.showRewardPopup = false; // Matikan agar tidak muncul terus-menerus
+      
+      // Gunakan post-frame callback agar dialog muncul SETELAH halaman beres dimuat
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showRewardDialog();
+      });
+    }
+  }
+
+  // --- POP-UP HADIAH (DESAIN BARU SESUAI IDE KAMU!) ---
+  void _showRewardDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Memaksa user memencet tombol
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFBF8F1), // Warna cream background
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: primaryGreen, width: 2),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))
+            ]
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon Bintang / Medali
+              Icon(Icons.stars_rounded, color: Colors.amber.shade500, size: 70),
+              const SizedBox(height: 16),
+
+              // Judul
+              Text(
+                "STAMP CARD COMPLETED!",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: primaryGreen,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Deskripsi
+              const Text(
+                "Awesome! You've collected 10 stamps.\nEnjoy your free coffee on us!",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black87, fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 24),
+
+              // UI Kartu Voucher (Ticket Style)
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+                  ]
+                ),
+                child: Row(
+                  children: [
+                    // Bagian Kiri (Hijau)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                      decoration: BoxDecoration(
+                        color: primaryGreen,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          bottomLeft: Radius.circular(16),
+                        ),
+                      ),
+                      child: const Icon(Icons.local_cafe, color: Colors.white, size: 36),
+                    ),
+                    // Garis Putus-putus (Divider)
+                    Container(
+                      height: 80,
+                      width: 2,
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(color: Colors.grey.shade300, width: 2, style: BorderStyle.none),
+                        ),
+                      ),
+                      child: CustomPaint(
+                        painter: DottedLinePainter(color: Colors.grey.shade300),
+                      ),
+                    ),
+                    // Bagian Kanan (Teks Voucher)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text("1x Free Coffee", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: textDark)),
+                            const SizedBox(height: 4),
+                            Text("Valid for any classic brew", style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // Tombol-tombol
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryGreen,
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: () {
+                  Navigator.pop(context); // Tutup Pop-up
+                },
+                child: const Text("Got it!", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); 
+                  // Opsional: Nanti bisa ditambah navigasi ke halaman list voucher
+                },
+                child: Text("See My Vouchers", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold, fontSize: 14)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStampTrackerCard() {
+    Widget buildStampNode(int index) {
+      bool isFilled = index < GlobalState.currentCardStamps; 
+      return Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: isFilled ? lightGreenCard : const Color(0xFFF4F1E1),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isFilled ? primaryGreen : Colors.grey.shade300,
+            width: isFilled ? 2.5 : 1,
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.local_cafe,
+            size: 22,
+            color: isFilled ? primaryGreen : Colors.grey.shade400,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Lumiora Rewards Club', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: textDark)),
+              Text('${GlobalState.currentCardStamps} / 10 Stamps', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryGreen)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(5, (index) => buildStampNode(index)),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(5, (index) => buildStampNode(index + 5)),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _onFooterItemTapped(int index) {
     if (index == 0) return; 
@@ -187,10 +391,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   const SizedBox(height: 6), 
                   Row(
                     children: [
-                      _buildStatBadge(Icons.workspace_premium, stamps.toString(), 'Stamps'), 
+                      // Badge Kecil: Membaca dari Total Stamps
+                      _buildStatBadge(Icons.workspace_premium, GlobalState.totalStamps.toString(), 'Stamps'), 
                       const SizedBox(width: 12),
-                      // Voucher badge automatically syncs with your claim action triggers
-                      _buildStatBadge(Icons.confirmation_num, bonusClaimed ? '2' : '1', 'Vouchers'),
+                      // Badge Voucher: Terhubung langsung ke GlobalState.vouchersCount
+                      _buildStatBadge(Icons.confirmation_num, GlobalState.vouchersCount.toString(), 'Vouchers'),
                     ],
                   ),
                 ],
@@ -303,91 +508,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         ),
       ],
-    );
-  }
-
-  // UPDATED STAMP TRACKER: Enforces an elegant, symmetric 5-5 split grid system
-  Widget _buildStampTrackerCard() {
-    Widget buildStampNode(int index) {
-      bool isFilled = index < stamps;
-      return Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: isFilled ? lightGreenCard : const Color(0xFFF4F1E1),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isFilled ? primaryGreen : Colors.grey.shade300,
-            width: isFilled ? 2.5 : 1,
-          ),
-        ),
-        child: Center(
-          child: Icon(
-            Icons.local_cafe,
-            size: 22,
-            color: isFilled ? primaryGreen : Colors.grey.shade400,
-          ),
-        ),
-      );
-    }
-
-    return HoverBounceWrapper(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Collect ${10 - stamps} more stamps to unlock a free signature Brew! ☕'),
-            backgroundColor: primaryGreen,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Lumiora Rewards Club',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: textDark),
-                ),
-                Text(
-                  '$stamps / 10 Stamps',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryGreen),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(5, (index) => buildStampNode(index)),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(5, (index) => buildStampNode(index + 5)),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -619,25 +739,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
+  // --- BANNER VOUCHER DIKLIK ---
   Widget _buildBonusUnlockedCard() {
+    bool isClaimed = GlobalState.bannerBonusClaimed;
+
     return HoverBounceWrapper(
       onTap: () {
-        setState(() {
-          bonusClaimed = true;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('🎉 Bonus voucher claimed successfully! Check your pocket.'),
-            backgroundColor: darkGrey,
-          ),
-        );
+        if (!isClaimed) {
+          setState(() {
+            // 🔥 UPDATE: Tandai banner sudah diklaim, dan tambah vouchernya!
+            GlobalState.bannerBonusClaimed = true;
+            GlobalState.vouchersCount += 1; 
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('🎉 Bonus voucher claimed successfully! Check your pocket.'),
+              backgroundColor: darkGrey,
+            ),
+          );
+        }
       },
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: bonusClaimed 
+            colors: isClaimed 
               ? [Colors.grey.shade400, Colors.grey.shade500]
               : [const Color(0xFF7B8C2A), const Color(0xFF5E6D1F)],
             begin: Alignment.topLeft,
@@ -661,19 +788,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    bonusClaimed ? 'Voucher Claimed' : 'Milestone Bonus Unlocked!',
+                    isClaimed ? 'Voucher Claimed' : 'Milestone Bonus Unlocked!',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    bonusClaimed ? 'Applied to your next checkout menu item' : 'Tap to claim your 20% Weekend Treats Voucher',
+                    isClaimed ? 'Applied to your next checkout menu item' : 'Tap to claim your 20% Weekend Treats Voucher',
                     style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 11),
                   ),
                 ],
               ),
             ),
             Icon(
-              bonusClaimed ? Icons.check_circle : Icons.arrow_forward_ios,
+              isClaimed ? Icons.check_circle : Icons.arrow_forward_ios,
               color: Colors.white,
               size: 16,
             ),
@@ -800,7 +927,6 @@ class HoverBounceWrapper extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   const HoverBounceWrapper({Key? key, required this.child, this.onTap}) : super(key: key);
-
   @override
   State<HoverBounceWrapper> createState() => _HoverBounceWrapperState();
 }
@@ -808,7 +934,6 @@ class HoverBounceWrapper extends StatefulWidget {
 class _HoverBounceWrapperState extends State<HoverBounceWrapper> {
   bool _isHovering = false;
   bool _isPressed = false;
-
   @override
   Widget build(BuildContext context) {
     final double scale = _isPressed ? 0.95 : (_isHovering ? 1.02 : 1.0);
@@ -823,12 +948,7 @@ class _HoverBounceWrapperState extends State<HoverBounceWrapper> {
           if (widget.onTap != null) widget.onTap!();
         },
         onTapCancel: () => setState(() => _isPressed = false),
-        child: AnimatedScale(
-          scale: scale,
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeInOut,
-          child: widget.child,
-        ),
+        child: AnimatedScale(scale: scale, duration: const Duration(milliseconds: 150), curve: Curves.easeInOut, child: widget.child),
       ),
     );
   }
@@ -837,7 +957,6 @@ class _HoverBounceWrapperState extends State<HoverBounceWrapper> {
 class DottedBackgroundPainter extends CustomPainter {
   final Color color;
   DottedBackgroundPainter({required this.color});
-
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color..strokeWidth = 2..strokeCap = StrokeCap.round;
@@ -847,12 +966,36 @@ class DottedBackgroundPainter extends CustomPainter {
       }
     }
   }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// Tambahan: Painter untuk efek garis putus-putus pada kartu voucher di dialog pop-up
+class DottedLinePainter extends CustomPainter {
+  final Color color;
+  DottedLinePainter({required this.color});
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+      
+    const double dashHeight = 5;
+    const double dashSpace = 4;
+    double startY = 0;
+    
+    while (startY < size.height) {
+      canvas.drawLine(Offset(0, startY), Offset(0, startY + dashHeight), paint);
+      startY += dashHeight + dashSpace;
+    }
+  }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// Custom Painter designed to replicate the signature line geometry of the Indonesian Halal stamp 
 class HalalLogoEmblemPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
