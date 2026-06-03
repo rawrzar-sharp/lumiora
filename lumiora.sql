@@ -103,88 +103,107 @@ CREATE TABLE `report_hourly_orders_daily` (
   UNIQUE KEY `idx_date_hour` (`report_date`, `order_hour`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-
 -- =========================================================================
 -- 2. CORE SEED DATA (Menu Categories & Menu Items)
 -- =========================================================================
 
 INSERT INTO `menu_categories` (`id`, `name`, `printer_target`) VALUES
-(1, 'Brunch', 'Kitchen'),
-(2, 'Pastry', 'Pastry'),
-(3, 'Coffee', 'Beverages'),
-(4, 'Non-Coffee', 'Beverages'),
-(5, 'Trio Deals', 'Kitchen');
+(1, 'Latte Series', 'Beverages'),
+(2, 'Classics', 'Beverages'),
+(3, 'Non-Coffee', 'Beverages'),
+(4, 'Bundling Duo', 'Beverages'),
+(5, 'Bundling Trio', 'Beverages'),
+(6, 'Pastry & Bakery', 'Pastry'),
+(7, 'Kitchen', 'Kitchen');
 
 INSERT INTO `menu_items` (`id`, `category_id`, `name`, `description`, `base_price`, `is_recommended`, `image_url`) VALUES
--- Brunch
-(1, 1, 'Truffle Scramble Egg Toast',   'Creamy truffle scrambled eggs on toasted brioche',          35000.00, 1, 'assets/images/prod_brunch_deals.png'),
-(2, 1, 'Smoked Brisket Hash',          'Tender smoked brisket with crispy potato hash',             45000.00, 1, 'assets/images/prod_brunch_deals (2).png'),
-(3, 1, 'Spicy Tuna Sando',             'Delicious signature sando with crisp tuna mix',             35000.00, 0, 'assets/images/sando(new_bonus_unlock).png'),
--- Pastry
-(4, 2, 'Pistachio Raspberry Croissant','Flaky croissant with rich pistachio cream and raspberry',   30000.00, 1, 'assets/images/crossait(new_bonus_unlock).png'),
-(5, 2, 'Butter Croissant',             'Classic golden French butter croissant',                    18000.00, 0, 'assets/images/crossait(new_bonus_unlock).png'),
-(6, 2, 'Croissant Crisp',              'Flaky butter croissant baked flat and crunchy',             15000.00, 0, 'assets/images/crossait(new_bonus_unlock).png'),
--- Coffee
-(7, 3, 'Iced Sea Salt Latte',          'Espresso over cold milk topped with creamy sea salt foam',  28000.00, 1, 'assets/images/prod_coffee_splash.png'),
-(8, 3, 'Salted Caramel Latte',         'Smooth espresso blended with sweet and salty caramel',      25000.00, 1, 'assets/images/prod_triple_brew.png'),
-(9, 3, 'Americano',                    'Classic bold espresso over water',                          20000.00, 0, 'assets/images/prod_coffee_splash.png'),
--- Non-Coffee
-(10, 4, 'Matcha Strawberry',           'Premium matcha layered with fresh strawberry puree',        28000.00, 1, 'assets/images/prod_triple_brew.png'),
-(11, 4, 'Iced Chocolate',              'Rich and creamy iced cocoa',                                25000.00, 0, 'assets/images/prod_triple_brew.png'),
-(12, 4, 'Lychee Tea',                  'Refreshing iced tea with sweet lychee pieces',              20000.00, 0, 'assets/images/prod_triple_brew.png'),
--- Trio Deals
-(13, 5, 'Spicy Tuna Sando + Drink',    'Combo Set: Signature tuna sando + chilled drink',           50000.00, 1, 'assets/images/prod_trio_cafe.png'),
-(14, 5, 'Pistachio Croissant + Drink', 'Combo Set: Flaky pistachio pastry + beverage',              55000.00, 1, 'assets/images/Triplecafe(new_bonus_unlock).png');
+-- -----------------------------------------
+-- LATTE SERIES (Category 1)
+-- -----------------------------------------
+(1, 1, 'Latte', 'Classic espresso with creamy steamed milk', 22000.00, 1, 'assets/images/prod_trio_cafe.png'),
+(2, 1, 'Aren Latte', 'Signature latte balanced with authentic palm sugar', 22000.00, 1, 'assets/images/prod_coffee_splash.png'),
+(3, 1, 'Caramel Latte', 'Sweet caramel syrup infused with smooth latte', 25000.00, 0, 'assets/images/prod_triple_brew.png'),
+(4, 1, 'Hazelnut Latte', 'Roasted hazelnut flavors in a rich milk coffee', 25000.00, 0, 'assets/images/prod_trio_cafe.png'),
+(5, 1, 'Vanilla Latte', 'Classic sweet vanilla notes with rich espresso', 25000.00, 0, 'assets/images/prod_coffee_splash.png'),
+(6, 1, 'Butterscotch Latte', 'Rich and buttery caramel notes in espresso', 25000.00, 1, 'assets/images/prod_triple_brew.png'),
+(7, 1, 'Buttercream Aren Latte', 'Creamy butter topping on our signature Aren Latte', 25000.00, 1, 'assets/images/prod_trio_cafe.png'),
+(8, 1, 'Creamy Aren Latte', 'Extra creamy version of the classic Aren Latte', 25000.00, 0, 'assets/images/prod_coffee_splash.png'),
+(9, 1, 'Pandan Latte', 'Local pandan infusion for a fragrant coffee experience', 25000.00, 0, 'assets/images/prod_triple_brew.png'),
+(10, 1, 'Avocado Latte', 'Smooth avocado blended with espresso and milk', 25000.00, 0, 'assets/images/prod_trio_cafe.png'),
+(11, 1, 'Banana Latte', 'Sweet banana notes perfectly paired with coffee', 25000.00, 0, 'assets/images/prod_coffee_splash.png'),
+(12, 1, 'Coconut Latte', 'Tropical coconut flavors in a creamy latte', 25000.00, 0, 'assets/images/prod_triple_brew.png'),
 
+-- -----------------------------------------
+-- CLASSICS (Category 2)
+-- -----------------------------------------
+(13, 2, 'Espresso', 'A strong and bold single shot of coffee', 15000.00, 0, 'assets/images/prod_coffee_splash.png'),
+(14, 2, 'Americano', 'Classic black coffee, simple and awakening', 17000.00, 1, 'assets/images/prod_triple_brew.png'),
+(15, 2, 'Cappucino', 'Equal parts espresso, steamed milk, and thick foam', 22000.00, 0, 'assets/images/prod_trio_cafe.png'),
+(16, 2, 'Caffe Mocha', 'Chocolate and coffee combined for a sweet kick', 25000.00, 1, 'assets/images/prod_coffee_splash.png'),
+
+-- -----------------------------------------
+-- NON-COFFEE (Category 3)
+-- -----------------------------------------
+(17, 3, 'Chocolate', 'Rich, creamy, and decadent iced chocolate', 25000.00, 1, 'assets/images/prod_triple_brew.png'),
+(18, 3, 'Matcha Latte', 'Premium Japanese matcha with creamy milk', 25000.00, 1, 'assets/images/prod_trio_cafe.png'),
+
+-- -----------------------------------------
+-- BUNDLING DUO (Category 4)
+-- -----------------------------------------
+(19, 4, 'Twin Brew', '2 Cups of Americano', 30000.00, 0, 'assets/images/prod_brunch_deals.png'),
+(20, 4, 'Signature Pair', 'Aren Latte + Americano', 35000.00, 1, 'assets/images/prod_brunch_deals.png'),
+(21, 4, 'Nusantara Duo', '2 Cups of Aren Latte', 40000.00, 1, 'assets/images/prod_brunch_deals.png'),
+(22, 4, 'The Classics Duo', '2 Cups of Latte', 40000.00, 0, 'assets/images/prod_brunch_deals.png'),
+(23, 4, 'Double Choc', '2 Cups of Chocolate', 45000.00, 0, 'assets/images/prod_brunch_deals.png'),
+
+-- -----------------------------------------
+-- BUNDLING TRIO (Category 5)
+-- -----------------------------------------
+(24, 5, 'Mood Booster', '3 Cups of Americano', 45000.00, 0, 'assets/images/Triplecafe(new_bonus_unlock).png'),
+(25, 5, 'Triple Treat', 'Hazelnut, Vanilla, and Caramel Latte', 60000.00, 1, 'assets/images/Triplecafe(new_bonus_unlock).png'),
+(26, 5, 'Sweetie Sweet', 'Pandan, Avocado, and Coconut Latte', 60000.00, 0, 'assets/images/Triplecafe(new_bonus_unlock).png'),
+(27, 5, 'House Favorites', 'Butterscotch, Matcha, and Chocolate', 60000.00, 1, 'assets/images/Triplecafe(new_bonus_unlock).png'),
+
+-- -----------------------------------------
+-- DUMMY PASTRY & KITCHEN (Categories 6 & 7)
+-- -----------------------------------------
+(28, 6, 'Butter Croissant', 'Classic golden French butter croissant', 18000.00, 0, 'assets/images/crossait(new_bonus_unlock).png'),
+(29, 6, 'Pistachio Raspberry Croissant', 'Flaky croissant with rich pistachio cream', 30000.00, 1, 'assets/images/crossait(new_bonus_unlock).png'),
+(30, 7, 'Spicy Tuna Sando', 'Delicious signature sando with crisp tuna mix', 35000.00, 1, 'assets/images/sando(new_bonus_unlock).png');
+
+-- =========================================================================
+-- CUSTOMIZATION OPTIONS DUMMY DATA SEEDING
+-- =========================================================================
+
+-- Standard Drinks (Latte Series, Classics, Non-Coffee)
 UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Extra Butter','Regular','Lesser Butter'),
-  'addons',      JSON_OBJECT('Ham', 5000, 'Cheese', 7000, 'Extra Jam', 3000)
-) WHERE id = 5;  -- Butter Croissant
+  'preferences', JSON_ARRAY('Normal Ice', 'Less Ice', 'No Ice', 'Hot'),
+  'addons',      JSON_OBJECT('Extra Shot Espresso', 5000, 'Oat Milk Upgrade', 8000, 'Caramel Drizzle', 4000, 'Vanilla Syrup', 4000)
+) WHERE id BETWEEN 1 AND 18;
 
+-- Sweet/Signature Drinks specifically getting Sugar Options
 UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Extra Pistachio','Regular','Less Sweet'),
-  'addons',      JSON_OBJECT('Vanilla Drizzle', 4000, 'Almond Flakes', 5000)
-) WHERE id = 4;  -- Pistachio Raspberry Croissant
+  'preferences', JSON_ARRAY('Normal Sugar', 'Less Sugar', 'No Sugar'),
+  'addons',      JSON_OBJECT('Extra Shot Espresso', 5000, 'Oat Milk Upgrade', 8000)
+) WHERE id IN (2, 7, 8, 17, 18); -- Aren, Buttercream Aren, Chocolate, Matcha
 
+-- Bundling (Duos and Trios)
 UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Crunchy','Regular'),
-  'addons',      JSON_OBJECT('Chocolate Dip', 4000, 'Caramel Sauce', 4000)
-) WHERE id = 6;  -- Croissant Crisp
+  'preferences', JSON_ARRAY('All Iced', 'All Hot', 'Mixed (Notes required)'),
+  'addons',      JSON_OBJECT('Upgrade All to Large', 15000, 'Paper Carrier Bag', 2000)
+) WHERE id BETWEEN 19 AND 27;
 
--- Brunch items: spice levels + addons
+-- Pastry & Bakery
 UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Mild','Medium','Spicy'),
-  'addons',      JSON_OBJECT('Extra Egg', 8000, 'Avocado Smash', 10000, 'Bacon', 12000)
-) WHERE id = 1;  -- Truffle Scramble Egg Toast
+  'preferences', JSON_ARRAY('Warm/Toasted', 'Room Temperature'),
+  'addons',      JSON_OBJECT('Extra Butter', 3000, 'Strawberry Jam', 4000)
+) WHERE id IN (28, 29);
 
+-- Kitchen / Savory
 UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Mild','Medium','Spicy'),
-  'addons',      JSON_OBJECT('Extra Brisket', 15000, 'Fried Egg', 8000)
-) WHERE id = 2;  -- Smoked Brisket Hash
-
-UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Mild','Medium','Ghost Pepper'),
-  'addons',      JSON_OBJECT('Extra Cheese', 5000, 'Avocado Smash', 8000)
-) WHERE id = 3;  -- Spicy Tuna Sando
-
--- Coffee: sugar & ice + addons
-UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Less Sugar','Normal Sugar','Extra Sweet','No Ice','Less Ice'),
-  'addons',      JSON_OBJECT('Extra Shot', 7000, 'Oat Milk', 8000, 'Whipped Cream', 5000)
-) WHERE id IN (7, 8, 9);
-
--- Non-Coffee: sugar/ice
-UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Less Sugar','Normal Sugar','Extra Sweet','No Ice','Less Ice'),
-  'addons',      JSON_OBJECT('Boba', 6000, 'Cheese Foam', 8000, 'Coconut Jelly', 5000)
-) WHERE id IN (10, 11, 12);
-
--- Trio combos
-UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Coffee','Matcha','Chocolate'),
-  'addons',      JSON_OBJECT('Upgrade to Large', 10000)
-) WHERE id IN (13, 14);
-
+  'preferences', JSON_ARRAY('Mild', 'Medium Spicy', 'Extra Spicy'),
+  'addons',      JSON_OBJECT('Extra Cheese', 6000, 'Add Fried Egg', 5000)
+) WHERE id = 30;
 
 -- =========================================================================
 -- 3. INVENTORY & RECIPES SEED DATA
