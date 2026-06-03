@@ -13,6 +13,10 @@ class _CartPageState extends State<CartPage> {
   final Color primaryGreen = const Color(0xFF7B8C2A);
   final Color darkGrey = const Color(0xFF4A4D4A);
   final Color textDark = const Color(0xFF2C3028);
+  final Color lightCream = const Color(0xFFEBE5D9);
+  
+  // URL untuk memanggil gambar dari backend (FIX ISSUE 2)
+  final String baseUrl = 'http://localhost:3000'; 
 
   @override
   void initState() {
@@ -35,255 +39,421 @@ class _CartPageState extends State<CartPage> {
   }
 
   int _calculateItemTotal(Map<String, dynamic> item) {
-    int price = (item['basePrice'] as int?) ?? 0;
-    final Map<String, int> addonOpts = Map<String, int>.from((item['addonOptions'] as Map?) ?? {});
-    final List<String> currentAddons = List<String>.from((item['selectedAddons'] as List?) ?? []);
+    int price = 0;
+    if (item['basePrice'] is num) {
+      price = (item['basePrice'] as num).toInt();
+    } else if (item['price'] is num) {
+      price = (item['price'] as num).toInt();
+    }
+    
+    Map<String, int> addonOpts = {};
+    if (item['addonOptions'] is Map) {
+      (item['addonOptions'] as Map).forEach((k, v) {
+        addonOpts[k.toString()] = int.tryParse(v.toString()) ?? 0;
+      });
+    }
+
+    final List<String> currentAddons = List<String>.from(item['selectedAddons'] ?? []);
 
     for (var addon in currentAddons) {
       price += addonOpts[addon] ?? 0;
     }
-    return price * ((item['quantity'] as int?) ?? 1);
+    return price * (int.tryParse(item['quantity'].toString()) ?? 1);
+  }
+
+  // --------------------------------------------------------------------------
+  // MODIFIER SHEET (FIX ISSUE 3: UI disamakan dengan Menu Page & Responsif)
+  // --------------------------------------------------------------------------
+  void _showModifierSheet(BuildContext context, int index, Map<String, dynamic> item) {
+    int currentSpice = 0;
+    if (item['selectedSpice'] is int) {
+      currentSpice = item['selectedSpice'];
+    } else if (item['selectedSpice'] != null) {
+      currentSpice = int.tryParse(item['selectedSpice'].toString()) ?? 0;
+    }
+
+    List<String> currentAddons = List<String>.from(item['selectedAddons'] ?? []);
+    
+    int maxSpice = 0;
+    if (item['spice_level_max'] is num) {
+      maxSpice = (item['spice_level_max'] as num).toInt();
+    } else if (item['spice_max'] is num) {
+      maxSpice = (item['spice_max'] as num).toInt();
+    }
+
+    Map<String, int> addonOpts = {};
+    if (item['addonOptions'] is Map) {
+      (item['addonOptions'] as Map).forEach((k, v) {
+        addonOpts[k.toString()] = int.tryParse(v.toString()) ?? 0;
+      });
+    }
+
+    int basePrice = 0;
+    if (item['basePrice'] is num) {
+      basePrice = (item['basePrice'] as num).toInt();
+    } else if (item['price'] is num) {
+      basePrice = (item['price'] as num).toInt();
+    }
+
+    int qty = int.tryParse(item['quantity'].toString()) ?? 1;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            // Kalkulasi harga sementara secara realtime saat modifier diubah
+            int tempSubtotal = basePrice;
+            for (var addon in currentAddons) {
+              tempSubtotal += addonOpts[addon] ?? 0;
+            }
+            int displayTotal = tempSubtotal * qty;
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                top: 24, left: 24, right: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Modify ${item['name']}", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
+                  const SizedBox(height: 20),
+                  
+                  // Opsi Spice Level (Jika ada)
+                  if (maxSpice > 0) ...[
+                    Text("SPICE LEVEL", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: primaryGreen)),
+                    const SizedBox(height: 8),
+                    Slider(
+                      value: currentSpice.toDouble(),
+                      min: 0,
+                      max: maxSpice.toDouble(),
+                      divisions: maxSpice > 0 ? maxSpice : 1,
+                      activeColor: primaryGreen,
+                      label: currentSpice == 0 ? "Normal" : "Level $currentSpice",
+                      onChanged: (val) {
+                        setModalState(() => currentSpice = val.toInt());
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Opsi Add-ons (Jika ada)
+                  if (addonOpts.isNotEmpty) ...[
+                    Text("ADD-ONS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: primaryGreen)),
+                    const SizedBox(height: 8),
+                    ...addonOpts.keys.map((addonKey) {
+                      bool hasAddon = currentAddons.contains(addonKey);
+                      return CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading, // Checkbox di kiri
+                        title: Text(addonKey, style: TextStyle(color: textDark, fontWeight: FontWeight.w500, fontSize: 15)),
+                        subtitle: Text("+ ${_formatRp(addonOpts[addonKey] ?? 0)}", style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                        value: hasAddon,
+                        activeColor: primaryGreen,
+                        onChanged: (checked) {
+                          setModalState(() {
+                            if (checked == true) {
+                              currentAddons.add(addonKey);
+                            } else {
+                              currentAddons.remove(addonKey);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ],
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Tombol Apply
+                  ElevatedButton(
+                    onPressed: () {
+                      item['selectedSpice'] = currentSpice;
+                      item['selectedAddons'] = currentAddons;
+                      // Refresh kalkulasi keranjang
+                      CartManager.instance.updateQuantity(index, qty); 
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryGreen,
+                      minimumSize: const Size(double.infinity, 54),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      "Apply Changes - ${_formatRp(displayTotal)}", 
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final cartItems = CartManager.instance.items;
+    final items = CartManager.instance.items;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F1E1),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: true,
-        title: Text(
-          "REVIEW ORDERS",
-          style: TextStyle(
-            color: darkGrey,
-            fontWeight: FontWeight.w900,
-            fontSize: 16,
-            letterSpacing: 1.2,
-          ),
-        ),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: darkGrey, size: 20),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
+        // FIX ISSUE 1: Berubah jadi My Cart
+        title: const Text('My Cart', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
-      body: cartItems.isEmpty
-          ? _buildEmptyState()
-          : Column(
-              children: [
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount: cartItems.length,
-                    itemBuilder: (context, index) {
-                      final item = cartItems[index];
-                      return _buildCartCard(item, index);
-                    },
-                  ),
-                ),
-                _buildStickyBottomPanel(),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.shopping_bag_outlined, size: 80, color: primaryGreen.withOpacity(0.5)),
-          const SizedBox(height: 16),
-          Text(
-            "Keranjangmu masih kosong nih!",
-            style: TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Yuk, kembali ke menu untuk memilih Rafdah Delight.",
-            style: TextStyle(color: darkGrey.withOpacity(0.8), fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryGreen,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text("Lihat Menu", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCartCard(Map<String, dynamic> item, int index) {
-    final int itemTotal = _calculateItemTotal(item);
-    final List<String> addons = List<String>.from(item['selectedAddons'] ?? []);
-    final String spice = item['selectedSpice'] ?? '';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFDCE2B9).withOpacity(0.6),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: primaryGreen.withOpacity(0.2)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              width: 70,
-              height: 70,
-              color: Colors.white24,
-              child: item['img'] != null && item['img'].toString().startsWith('assets')
-                  ? Image.asset(item['img'], fit: BoxFit.cover)
-                  : const Icon(Icons.fastfood, color: Colors.grey),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item['name'] ?? '',
-                  style: TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 15),
-                ),
-                const SizedBox(height: 4),
-                if (spice.isNotEmpty || addons.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      [
-                        if (spice.isNotEmpty) "Level: $spice",
-                        if (addons.isNotEmpty) "Add-ons: ${addons.join(', ')}"
-                      ].join(' | '),
-                      style: TextStyle(color: darkGrey, fontSize: 11, fontStyle: FontStyle.italic),
-                    ),
-                  ),
-                Text(
-                  _formatRp(itemTotal),
-                  style: TextStyle(color: primaryGreen, fontWeight: FontWeight.w800, fontSize: 14),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              IconButton(
-                alignment: Alignment.topRight,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                onPressed: () => CartManager.instance.removeAt(index),
-              ),
-              const SizedBox(height: 12),
-              Row(
+      body: items.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildQtyBtn(
-                    icon: Icons.remove,
-                    onPressed: () {
-                      int currentQty = item['quantity'] ?? 1;
-                      CartManager.instance.updateQuantity(index, currentQty - 1);
-                    },
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text(
-                      "${item['quantity'] ?? 1}",
-                      style: TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                  ),
-                  _buildQtyBtn(
-                    icon: Icons.add,
-                    onPressed: () {
-                      int currentQty = item['quantity'] ?? 1;
-                      CartManager.instance.updateQuantity(index, currentQty + 1);
-                    },
-                  ),
+                  Icon(Icons.shopping_cart_outlined, size: 60, color: Colors.grey.shade300),
+                  const SizedBox(height: 16),
+                  Text("Your cart is empty", style: TextStyle(color: darkGrey, fontSize: 16)),
                 ],
-              )
-            ],
-          )
-        ],
-      ),
-    );
-  }
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                
+                // FIX ISSUE 2: Handling Image Url (Menambahkan baseUrl)
+                String rawImg = (item['image_url'] ?? item['img'] ?? '').toString();
+                String imageUrl = '';
+                bool isAsset = false;
 
-  Widget _buildQtyBtn({required IconData icon, required VoidCallback onPressed}) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: primaryGreen,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 14),
-      ),
-    );
-  }
+                if (rawImg.isNotEmpty) {
+                  if (rawImg.startsWith('http')) {
+                    imageUrl = rawImg;
+                  } else if (rawImg.startsWith('assets/')) {
+                    isAsset = true;
+                    imageUrl = rawImg;
+                  } else {
+                    imageUrl = rawImg.startsWith('/') ? '$baseUrl$rawImg' : '$baseUrl/$rawImg';
+                  }
+                }
+                    
+                final List<String> addons = List<String>.from((item['selectedAddons'] as List?) ?? []);
 
-  Widget _buildStickyBottomPanel() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4)),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text("Total Pesanan", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                const SizedBox(height: 4),
-                Text(
-                  _formatRp(CartManager.instance.subtotal),
-                  style: TextStyle(color: textDark, fontWeight: FontWeight.w900, fontSize: 18),
-                ),
-              ],
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const TakeoutPage()),
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))
+                    ],
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ------------------------------------------------------------
+                      // UPDATE 3: GAMBAR PRODUK & "Review Order" Text View Below It
+                      // ------------------------------------------------------------
+                      Column(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: imageUrl.isNotEmpty
+                                ? (isAsset 
+                                    ? Image.asset(
+                                        imageUrl,
+                                        width: 75, height: 75, fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          width: 75, height: 75, color: lightCream,
+                                          child: Icon(Icons.broken_image, color: primaryGreen),
+                                        ),
+                                      )
+                                    : Image.network(
+                                        imageUrl,
+                                        width: 75, height: 75, fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          width: 75, height: 75, color: lightCream,
+                                          child: Icon(Icons.broken_image, color: primaryGreen),
+                                        ),
+                                      ))
+                                : Container(
+                                    width: 75, height: 75, color: lightCream,
+                                    child: Icon(Icons.image, color: primaryGreen),
+                                  ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      
+                      // DETAIL PRODUK (Nama, Addons, Harga & Kontrol)
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Baris Atas: Judul & Tombol QTY (+/-)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    item['name'] ?? 'Unknown Item',
+                                    style: TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                ),
+                                // Tombol Tambah Kurang (QTY)
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: lightCream,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.remove, size: 16),
+                                        constraints: const BoxConstraints(),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        onPressed: () {
+                                          CartManager.instance.updateQuantity(index, (item['quantity'] as int) - 1);
+                                        },
+                                      ),
+                                      Text('${item['quantity']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                      IconButton(
+                                        icon: const Icon(Icons.add, size: 16),
+                                        constraints: const BoxConstraints(),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        onPressed: () {
+                                          CartManager.instance.updateQuantity(index, (item['quantity'] as int) + 1);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            
+                            // Baris Tengah: Addons & Harga
+                            if (addons.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4, bottom: 4),
+                                child: Text(
+                                  addons.join(', '),
+                                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                ),
+                              ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _formatRp(_calculateItemTotal(item)),
+                              style: TextStyle(color: primaryGreen, fontWeight: FontWeight.w900, fontSize: 15),
+                            ),
+                            
+                            const SizedBox(height: 8),
+                            
+                            // Baris Bawah: Tombol EDIT & TRASH BIN
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                InkWell(
+                                  onTap: () => _showModifierSheet(context, index, item),
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.edit, size: 16, color: primaryGreen),
+                                        const SizedBox(width: 4),
+                                        Text("Edit", style: TextStyle(color: primaryGreen, fontSize: 13, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                
+                                InkWell(
+                                  onTap: () {
+                                    CartManager.instance.removeAt(index);
+                                  },
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                    child: Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryGreen,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
+            ),
+      // BAGIAN BAWAH (Subtotal & Next Button)
+      bottomNavigationBar: items.isEmpty
+          ? null
+          : Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))],
               ),
-              child: const Row(
-                children: [
-                  Text("Next", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                  SizedBox(width: 6),
-                  Icon(Icons.arrow_forward, color: Colors.white, size: 16),
-                ],
+              child: SafeArea(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text("Total Pesanan", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatRp(CartManager.instance.subtotal),
+                          style: TextStyle(color: textDark, fontWeight: FontWeight.w900, fontSize: 20),
+                        ),
+                      ],
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const TakeoutPage()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryGreen,
+                        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      child: const Row(
+                        children: [
+                          Text("Next", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                          SizedBox(width: 8),
+                          Icon(Icons.arrow_forward, color: Colors.white, size: 18),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 }
