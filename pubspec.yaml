@@ -61,6 +61,7 @@ flutter:
 
   assets:
     - assets/images/qris_gpn_sirlaw.png
+    - assets/images/
 
 # atau cukup daftarkan foldernya saja:
     # - assets/images/

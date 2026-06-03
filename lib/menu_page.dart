@@ -18,10 +18,8 @@ class _MenuPageState extends State<MenuPage> {
   bool _loading = true;
   String? _errorMessage;
   
-  // Navigation State to sync with footer layout
   int _bottomNavIndex = 1; 
 
-  // --- VARIABEL UNTUK KATEGORI ---
   String _selectedCategory = 'All';
   List<String> get _categories {
     final cats = _menu.map((e) => e['category'].toString()).toSet().toList();
@@ -39,6 +37,18 @@ class _MenuPageState extends State<MenuPage> {
   void dispose() {
     CartManager.instance.removeListener(_onCartChange);
     super.dispose();
+  }
+
+  void _onFooterItemTapped(int index) {
+    if (index == _bottomNavIndex) return;
+
+    if (index == 0) {
+      Navigator.pop(context);
+    } else {
+      setState(() {
+        _bottomNavIndex = index;
+      });
+    }
   }
 
   void _onCartChange() => setState(() {});
@@ -80,7 +90,7 @@ class _MenuPageState extends State<MenuPage> {
               'name': (item['name'] ?? '').toString(),
               'category': _catName(item['category_id']),
               'basePrice': double.tryParse((item['base_price'] ?? 0).toString())?.round() ?? 0,
-              'img': _resolveImage(item['name'], item['image_url']),
+              'img': _resolveImage(item['name'], item['image_url'], item['category_id']),
               'selectedSpice': prefs.isNotEmpty ? prefs[0] : '',
               'spiceOptions': prefs,                  
               'selectedAddons': <String>[],           
@@ -115,21 +125,29 @@ class _MenuPageState extends State<MenuPage> {
     }
   }
 
-  String _resolveImage(dynamic name, dynamic url) {
-    if (url != null && url.toString().isNotEmpty) return url.toString();
+  // FIX: Implemented robust matching against your screenshot names
+  String _resolveImage(dynamic name, dynamic url, dynamic categoryId) {
     final n = (name ?? '').toString().toLowerCase();
-    if (n.contains('tuna') || n.contains('sando'))      return 'assets/images/sando(new_bonus_unlock).png';
-    if (n.contains('truffle') || n.contains('toast'))   return 'assets/images/prod_brunch_deals.png';
-    if (n.contains('brisket') || n.contains('hash'))    return 'assets/images/prod_brunch_deals (2).png';
-    if (n.contains('pistachio') && n.contains('crois')) return 'assets/images/crossait(new_bonus_unlock).png';
-    if (n.contains('butter croissant'))                 return 'assets/images/crossait(new_bonus_unlock).png';
-    if (n.contains('croissant'))                        return 'assets/images/crossait(new_bonus_unlock).png';
-    if (n.contains('sea salt') || n.contains('latte'))  return 'assets/images/prod_coffee_splash.png';
-    if (n.contains('americano') || n.contains('coffee'))return 'assets/images/prod_coffee_splash.png';
-    if (n.contains('matcha'))                           return 'assets/images/prod_triple_brew.png';
-    if (n.contains('chocolate') || n.contains('lychee'))return 'assets/images/prod_triple_brew.png';
-    if (n.contains('trio') || n.contains('combo'))      return 'assets/images/prod_trio_cafe.png';
-    return 'assets/images/prod_triple_brew.png';
+
+    if (n.contains('tuna') || n.contains('sando')) return 'assets/images/sando(new_bonus_unlock).png';
+    if (n.contains('croissant') || n.contains('pastry')) return 'assets/images/crossait(new_bonus_unlock).png';
+    if (n.contains('toast') || n.contains('brisket') || n.contains('hash')) return 'assets/images/prod_brunch_deals (3).png'; 
+    
+    if (n.contains('matcha') || n.contains('green')) return 'assets/images/prod_trio_cafe.png';
+    if (n.contains('caramel') || n.contains('macchiato')) return 'assets/images/prod_brunch_deals (2).png';
+    if (n.contains('americano') || n.contains('black') || n.contains('sea salt')) return 'assets/images/prod_coffee_splash.png';
+    if (n.contains('latte') || n.contains('milk')) return 'assets/images/prod_trio_cafe (2).png';
+    if (n.contains('trio') || n.contains('combo')) return 'assets/images/Triplecafe(new_bonus_unlock).png';
+
+    final cat = int.tryParse(categoryId?.toString() ?? '0') ?? 0;
+    switch (cat) {
+      case 1: return 'assets/images/prod_brunch_deals (3).png'; 
+      case 2: return 'assets/images/crossait(new_bonus_unlock).png'; 
+      case 3: return 'assets/images/prod_coffee_splash.png'; 
+      case 4: return 'assets/images/prod_triple_brew.png'; 
+      case 5: return 'assets/images/prod_trio_cafe.png'; 
+      default: return 'assets/images/prod_triple_brew.png'; 
+    }
   }
 
   String _formatRp(int amount) =>
@@ -157,8 +175,6 @@ class _MenuPageState extends State<MenuPage> {
               child: Stack(
                 children: [
                   _buildBody(),
-                  
-                  // --- FIXED FLOATING CART BAR OVERFLOW PROTECTION ---
                   if (CartManager.instance.count > 0)
                     Positioned(
                       left: 0,
@@ -187,7 +203,6 @@ class _MenuPageState extends State<MenuPage> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                // Left side packed inside an Expanded wrapper to give it explicit bounded parameters
                                 Expanded(
                                   child: Row(
                                     children: [
@@ -216,7 +231,7 @@ class _MenuPageState extends State<MenuPage> {
                                     ],
                                   ),
                                 ),
-                                const SizedBox(width: 12), // Safe clearance gap
+                                const SizedBox(width: 12), 
                                 const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -362,7 +377,6 @@ class _MenuPageState extends State<MenuPage> {
             children: [
               Icon(icon, color: color, size: 28),
               const SizedBox(height: 4),
-              // --- FIXED NAV TEXT TRUNCATION GUARD ---
               Text(
                 label, 
                 style: TextStyle(fontSize: 11, color: color, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal),
@@ -373,6 +387,16 @@ class _MenuPageState extends State<MenuPage> {
           ),
         ),
       ),
+    );
+  }
+
+  // FIX: Added the fallback builder safely back to ensure you don't see burger icons
+  Widget _buildFallbackImage() {
+    return Image.asset(
+      'assets/images/prod_triple_brew.png',
+      width: 80,
+      height: 80,
+      fit: BoxFit.cover,
     );
   }
 
@@ -484,6 +508,8 @@ class _MenuPageState extends State<MenuPage> {
             itemCount: filteredMenu.length,
             itemBuilder: (c, i) {
               final item = filteredMenu[i];
+              final String imagePath = item['img']?.toString() ?? '';
+              
               return Container(
                 margin: const EdgeInsets.only(bottom: 14),
                 padding: const EdgeInsets.all(12),
@@ -491,19 +517,22 @@ class _MenuPageState extends State<MenuPage> {
                 child: Row(
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.asset(
-                        item['img'],
-                        width: 90, 
-                        height: 90, 
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 90, 
-                          height: 90, 
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.fastfood),
-                        ),
-                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      child: imagePath.startsWith('assets/')
+                          ? Image.asset(
+                              imagePath,
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => _buildFallbackImage(), // FIX applied here
+                            )
+                          : Image.network(
+                              imagePath.startsWith('http') ? imagePath : '$baseUrl$imagePath',
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => _buildFallbackImage(), // FIX applied here
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -526,7 +555,7 @@ class _MenuPageState extends State<MenuPage> {
                         if (spiceOpts.isNotEmpty || addonOpts.isNotEmpty) {
                           _showModifierSheet(context, item);
                         } else {
-                            CartManager.instance.addItem(item); 
+                          CartManager.instance.addItem(item); 
                         }
                       },
                     ),

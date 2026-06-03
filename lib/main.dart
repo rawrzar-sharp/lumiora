@@ -10,7 +10,7 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
-@override
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -41,10 +41,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   int _bottomNavIndex = 0;
   bool _isTrioActive = true;
 
-  // --- ISSUE #12: Initialize stamps to 0 ---
   int stamps = 0; 
 
-  // --- ISSUE #4 & #9: Function to add stamps (to be called after payment) ---
   void addStampsFromPayment(int totalTransaction) {
     setState(() {
       int earnedStamps = (totalTransaction / 50000).floor(); 
@@ -52,8 +50,46 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     });
   }
 
-  // --- ISSUE #1: Updated Menu Data (Rafdah Menu applied to Duo/Trio for now as placeholders, 
-  // you may need to adjust image paths if you don't have them yet) ---
+  void _onFooterItemTapped(int index) {
+    // If they tap Home while on Home, do nothing
+    if (index == 0) return;
+
+    if (index == 1) {
+      Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MenuPage()),
+          ).then((_) {
+
+            if (mounted) {
+            setState(() {
+          _bottomNavIndex = 0;
+        });
+      }
+    });
+  }
+}
+
+
+  Widget _buildProductImage(String imagePath, {double width = 85, double height = 85}) {
+    return Image.asset(
+      imagePath,
+      width: width,
+      height: height,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.6),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.local_cafe, color: primaryGreen, size: width * 0.4),
+        );
+      },
+    );
+  }
+
   final List<Map<String, String>> trioProducts = [
     {'title': 'Trio Cafe', 'desc': 'Triple the drinks.\nTriple the fun.', 'price': 'Rp 50.000', 'rating': '5.0', 'img': 'assets/images/prod_trio_cafe.png'},
     {'title': 'Triple Brew', 'desc': 'Matcha, Choco, and\nCoffee', 'price': 'Rp 65.000', 'rating': '5.0', 'img': 'assets/images/prod_triple_brew.png'},
@@ -61,12 +97,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     {'title': 'Brunch Deals', 'desc': 'Vanilla latte, Cappuccino,\nand Sando', 'price': 'Rp 45.000', 'rating': '5.0', 'img': 'assets/images/prod_brunch_deals.png'},
   ];
 
-  // Updated Duo products based on your image (Issue #11)
   final List<Map<String, String>> duoProducts = [
     {'title': 'Duo Cafe', 'desc': 'Start work with your\nfave latte cup.', 'price': 'Rp 25.000', 'rating': '4.8', 'img': 'assets/images/prod_coffee_splash.png'},
     {'title': 'Twin-Flavors', 'desc': 'Caramel macchiato\n+ Latte', 'price': 'Rp 30.000', 'rating': '4.9', 'img': 'assets/images/prod_triple_brew.png'},
-    {'title': 'Sit Down Deals', 'desc': 'Lava Hazelnut + Croissant', 'price': 'Rp 18.000', 'rating': '4.7', 'img': 'assets/images/prod_brunch_deals.png'}, // Placeholder image
-    {'title': 'Dual Brews', 'desc': 'Cappuccino + Matcha', 'price': 'Rp 38.000', 'rating': '4.8', 'img': 'assets/images/prod_triple_brew.png'}, // Placeholder image
+    {'title': 'Sit Down Deals', 'desc': 'Lava Hazelnut + Croissant', 'price': 'Rp 18.000', 'rating': '4.7', 'img': 'assets/images/prod_brunch_deals.png'}, 
+    {'title': 'Dual Brews', 'desc': 'Cappuccino + Matcha', 'price': 'Rp 38.000', 'rating': '4.8', 'img': 'assets/images/prod_triple_brew.png'}, 
   ];
 
   @override
@@ -105,15 +140,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   const SizedBox(height: 20),
                   _buildGrandFeastBanner(), 
                   const SizedBox(height: 16), 
-
-                  // --- ISSUE #11: Duo Cards added below Grand Feast ---
                   _buildHorizontalDuoCards(),
-
                   const SizedBox(height: 20),
-
-                  // --- ISSUE #10: Halal Card added at the bottom ---
                   _buildHalalFooterCard(),
-
                   const SizedBox(height: 40),
                 ],
               ),
@@ -136,12 +165,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             Container(
               height: 240,
               width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFBF8F1),
-                image: DecorationImage(
-                  image: AssetImage('assets/images/hero_coffee_splash.png'),
-                  fit: BoxFit.cover,
-                ),
+              color: const Color(0xFFFBF8F1),
+              child: Image.asset(
+                'assets/images/hero_coffee_splash.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: primaryGreen.withOpacity(0.15),
+                    child: Center(
+                      child: Icon(Icons.broken_image_outlined, color: primaryGreen, size: 40),
+                    ),
+                  );
+                },
               ),
             ),
             Container(
@@ -159,7 +194,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   const SizedBox(height: 6), 
                   Row(
                     children: [
-                      // --- ISSUE #12: Display the dynamic stamps variable here ---
                       _buildStatBadge(Icons.workspace_premium, stamps.toString(), 'Stamps'), 
                       const SizedBox(width: 12),
                       _buildStatBadge(Icons.confirmation_num, '1', 'Vouchers'),
@@ -360,7 +394,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   right: -15, bottom: -15,
                   child: SizedBox(
                     width: 85, height: 85,
-                    child: Image.asset(product['img']!, fit: BoxFit.contain, errorBuilder: (context, error, stackTrace) => const Icon(Icons.fastfood, size: 40, color: Colors.white54)),
+                    child: Image.asset(
+                      product['img']!, 
+                      fit: BoxFit.contain, 
+                      errorBuilder: (context, error, stackTrace) => Image.asset('assets/images/prod_triple_brew.png', fit: BoxFit.contain)
+                    ), // FIX: Missing parenthesis closed here!
                   ),
                 ),
               ],
@@ -414,13 +452,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  // --- ISSUE #11: Horizontal Duo Cards Implementation ---
   Widget _buildHorizontalDuoCards() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          // Card Duo 1
           Container(
             width: 200,
             padding: const EdgeInsets.all(12),
@@ -433,12 +469,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               children: [
                 const Text('Tea & Croissant Duo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 4),
-                Text('Rp 35.000', style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold)),
+                Text('Rp 35.000', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          // Card Duo 2
           Container(
             width: 200,
             padding: const EdgeInsets.all(12),
@@ -451,7 +486,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               children: [
                 const Text('Coffee & Cake Duo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 4),
-                Text('Rp 40.000', style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold)),
+                Text('Rp 40.000', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -460,7 +495,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  // --- ISSUE #10: Halal Card Implementation ---
   Widget _buildHalalFooterCard() {
     return Container(
       width: double.infinity,
@@ -474,7 +508,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Placeholder icon, replace with Image.asset if you have the Halal logo
               const Icon(Icons.mosque, color: Colors.white, size: 40), 
               const SizedBox(width: 12),
               Column(
@@ -501,7 +534,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       ),
     );
   }
-
 
   Widget _buildFAB() {
     return FloatingActionButton(
@@ -559,7 +591,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 }
 
-// --- UTILITY CLASS PAINTER & HOVER ---
 class HoverBounceWrapper extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
