@@ -41,53 +41,42 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   int _bottomNavIndex = 0;
   bool _isTrioActive = true;
 
-  int stamps = 0; 
-
-  void addStampsFromPayment(int totalTransaction) {
-    setState(() {
-      int earnedStamps = (totalTransaction / 50000).floor(); 
-      stamps += earnedStamps;
-    });
-  }
+  // Track state for user interactive experience
+  int stamps = 4; 
+  bool bonusClaimed = false;
 
   void _onFooterItemTapped(int index) {
-    // If they tap Home while on Home, do nothing
-    if (index == 0) return;
+    if (index == 0) return; 
 
     if (index == 1) {
       Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const MenuPage()),
-          ).then((_) {
+        context,
+        MaterialPageRoute(builder: (context) => const MenuPage()),
+      ).then((_) {
+        if (mounted) {
+          setState(() {
+            _bottomNavIndex = 0;
+          });
+        }
+      });
+    } else {
+      setState(() {
+        _bottomNavIndex = index;
+      });
+    }
+  }
 
-            if (mounted) {
-            setState(() {
+  void _navigateToMenu() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MenuPage()),
+    ).then((_) {
+      if (mounted) {
+        setState(() {
           _bottomNavIndex = 0;
         });
       }
     });
-  }
-}
-
-
-  Widget _buildProductImage(String imagePath, {double width = 85, double height = 85}) {
-    return Image.asset(
-      imagePath,
-      width: width,
-      height: height,
-      fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.6),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(Icons.local_cafe, color: primaryGreen, size: width * 0.4),
-        );
-      },
-    );
   }
 
   final List<Map<String, String>> trioProducts = [
@@ -124,7 +113,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     children: [
                       const SizedBox(height: 16),
                       _buildActionButtons(),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 16),
+                      _buildStampTrackerCard(), 
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
@@ -139,10 +130,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   _buildProductGrid(),
                   const SizedBox(height: 20),
                   _buildGrandFeastBanner(), 
-                  const SizedBox(height: 16), 
-                  _buildHorizontalDuoCards(),
+                  const SizedBox(height: 20), 
+                  _buildHorizontalDuoCards(), // Relocated right below Grand Feast Banner with full designs
                   const SizedBox(height: 20),
-                  _buildHalalFooterCard(),
+                  _buildBonusUnlockedCard(), 
+                  const SizedBox(height: 24),
+                  _buildHalalFooterCard(), // High-Fidelity Mockup Redesign
                   const SizedBox(height: 40),
                 ],
               ),
@@ -196,7 +189,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     children: [
                       _buildStatBadge(Icons.workspace_premium, stamps.toString(), 'Stamps'), 
                       const SizedBox(width: 12),
-                      _buildStatBadge(Icons.confirmation_num, '1', 'Vouchers'),
+                      // Voucher badge automatically syncs with your claim action triggers
+                      _buildStatBadge(Icons.confirmation_num, bonusClaimed ? '2' : '1', 'Vouchers'),
                     ],
                   ),
                 ],
@@ -312,6 +306,91 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
+  // UPDATED STAMP TRACKER: Enforces an elegant, symmetric 5-5 split grid system
+  Widget _buildStampTrackerCard() {
+    Widget buildStampNode(int index) {
+      bool isFilled = index < stamps;
+      return Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: isFilled ? lightGreenCard : const Color(0xFFF4F1E1),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isFilled ? primaryGreen : Colors.grey.shade300,
+            width: isFilled ? 2.5 : 1,
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.local_cafe,
+            size: 22,
+            color: isFilled ? primaryGreen : Colors.grey.shade400,
+          ),
+        ),
+      );
+    }
+
+    return HoverBounceWrapper(
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Collect ${10 - stamps} more stamps to unlock a free signature Brew! ☕'),
+            backgroundColor: primaryGreen,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Lumiora Rewards Club',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: textDark),
+                ),
+                Text(
+                  '$stamps / 10 Stamps',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryGreen),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(5, (index) => buildStampNode(index)),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(5, (index) => buildStampNode(index + 5)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildToggle() {
     return Container(
       padding: const EdgeInsets.all(4),
@@ -365,7 +444,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       itemBuilder: (context, index) {
         final product = products[index];
         return HoverBounceWrapper(
-          onTap: () {},
+          onTap: _navigateToMenu, 
           child: Container(
             decoration: BoxDecoration(color: lightGreenCard, borderRadius: BorderRadius.circular(20)),
             padding: const EdgeInsets.all(12),
@@ -398,7 +477,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       product['img']!, 
                       fit: BoxFit.contain, 
                       errorBuilder: (context, error, stackTrace) => Image.asset('assets/images/prod_triple_brew.png', fit: BoxFit.contain)
-                    ), // FIX: Missing parenthesis closed here!
+                    ),
                   ),
                 ),
               ],
@@ -411,7 +490,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Widget _buildGrandFeastBanner() {
     return HoverBounceWrapper(
-      onTap: () {},
+      onTap: _navigateToMenu, 
       child: Container(
         height: 160, width: double.infinity,
         decoration: BoxDecoration(
@@ -452,83 +531,212 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
+  // DESIGN REFRESH: Upgraded Duo Slider Card Layout with specific header element & added cards
   Widget _buildHorizontalDuoCards() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          Container(
-            width: 200,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9), 
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Tea & Croissant Duo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 4),
-                Text('Rp 35.000', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-              ],
-            ),
+    final List<Map<String, dynamic>> multiDuoItems = [
+      {'title': 'Tea & Croissant Duo', 'price': 'Rp 35.000', 'icon': Icons.coffee, 'bgColor': const Color(0xFFF1F5EC)},
+      {'title': 'Coffee & Cake Duo', 'price': 'Rp 40.000', 'icon': Icons.cake, 'bgColor': const Color(0xFFEDF2E7)},
+      {'title': 'Matcha & Tart Duo', 'price': 'Rp 38.000', 'icon': Icons.cookie, 'bgColor': const Color(0xFFE7ECE1)},
+      {'title': 'Chai & Muffin Duo', 'price': 'Rp 36.000', 'icon': Icons.icecream_outlined, 'bgColor': const Color(0xFFEFF4EA)},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Exclusive Duo Combos',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark),
+              ),
+              Text(
+                'Slide for more →',
+                style: TextStyle(fontSize: 11, color: primaryGreen, fontWeight: FontWeight.w500),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Container(
-            width: 200,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Coffee & Cake Duo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 4),
-                Text('Rp 40.000', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-              ],
-            ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 90,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: multiDuoItems.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final duo = multiDuoItems[index];
+              return HoverBounceWrapper(
+                onTap: _navigateToMenu,
+                child: Container(
+                  width: 185,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: duo['bgColor'],
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: primaryGreen.withOpacity(0.12), width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(duo['icon'], color: primaryGreen, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              duo['title'],
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: textDark, height: 1.15),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              duo['price'],
+                              style: TextStyle(color: primaryGreen, fontWeight: FontWeight.w800, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBonusUnlockedCard() {
+    return HoverBounceWrapper(
+      onTap: () {
+        setState(() {
+          bonusClaimed = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('🎉 Bonus voucher claimed successfully! Check your pocket.'),
+            backgroundColor: darkGrey,
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: bonusClaimed 
+              ? [Colors.grey.shade400, Colors.grey.shade500]
+              : [const Color(0xFF7B8C2A), const Color(0xFF5E6D1F)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.celebration, color: Colors.white, size: 28),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    bonusClaimed ? 'Voucher Claimed' : 'Milestone Bonus Unlocked!',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    bonusClaimed ? 'Applied to your next checkout menu item' : 'Tap to claim your 20% Weekend Treats Voucher',
+                    style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              bonusClaimed ? Icons.check_circle : Icons.arrow_forward_ios,
+              color: Colors.white,
+              size: 16,
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  // HIGH-FIDELITY REDESIGN: Accurate replica matching layout from Screenshot 2026-06-03 214720_3.png
   Widget _buildHalalFooterCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
       decoration: BoxDecoration(
-        color: const Color(0xFFDCE5C5), 
+        color: const Color(0xFFDCE2B9), 
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.mosque, color: Colors.white, size: 40), 
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'HALAL',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  Text(
-                    'INDONESIA',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
-                  ),
-                ],
-              ),
-            ],
+          CustomPaint(
+            size: const Size(45, 55),
+            painter: HalalLogoEmblemPainter(),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'ID241103130106',
-            style: TextStyle(color: Colors.white70, fontSize: 12),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'HALAL',
+                  style: TextStyle(
+                    fontSize: 26, 
+                    fontWeight: FontWeight.w900, 
+                    color: Colors.white, 
+                    letterSpacing: 1.5,
+                    height: 1.0
+                  ),
+                ),
+                const Text(
+                  'INDONESIA',
+                  style: TextStyle(
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold, 
+                    color: Colors.white, 
+                    letterSpacing: 0.8,
+                    height: 1.1
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'ID241103130106',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9), 
+                    fontSize: 11, 
+                    fontWeight: FontWeight.w600, 
+                    letterSpacing: 0.4
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -555,14 +763,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _buildNavItem(Icons.home_filled, 'Home', 0, onTap: () => setState(() => _bottomNavIndex = 0)),
-            _buildNavItem(Icons.local_cafe, 'Menu', 1, onTap: () {
-              setState(() => _bottomNavIndex = 1);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const MenuPage()));
-            }),
+            _buildNavItem(Icons.home_filled, 'Home', 0, onTap: () => _onFooterItemTapped(0)),
+            _buildNavItem(Icons.local_cafe, 'Menu', 1, onTap: () => _onFooterItemTapped(1)),
             const SizedBox(width: 60), 
-            _buildNavItem(Icons.receipt_long, 'History', 2, onTap: () => setState(() => _bottomNavIndex = 2)),
-            _buildNavItem(Icons.person, 'Profile', 3, onTap: () => setState(() => _bottomNavIndex = 3)),
+            _buildNavItem(Icons.receipt_long, 'History', 2, onTap: () => _onFooterItemTapped(2)),
+            _buildNavItem(Icons.person, 'Profile', 3, onTap: () => _onFooterItemTapped(3)),
           ],
         ),
       ),
@@ -641,6 +846,33 @@ class DottedBackgroundPainter extends CustomPainter {
         canvas.drawCircle(Offset(i, j), 1.5, paint);
       }
     }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// Custom Painter designed to replicate the signature line geometry of the Indonesian Halal stamp 
+class HalalLogoEmblemPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final baseOutlinePath = Path();
+    baseOutlinePath.moveTo(size.width * 0.5, size.height * 0.05);
+    baseOutlinePath.lineTo(size.width * 0.05, size.height * 0.85);
+    baseOutlinePath.lineTo(size.width * 0.95, size.height * 0.85);
+    baseOutlinePath.close();
+    canvas.drawPath(baseOutlinePath, paint);
+
+    // Dynamic interior line partitions matching high-fidelity asset shapes
+    canvas.drawLine(Offset(size.width * 0.5, size.height * 0.05), Offset(size.width * 0.5, size.height * 0.85), paint);
+    canvas.drawLine(Offset(size.width * 0.32, size.height * 0.35), Offset(size.width * 0.32, size.height * 0.85), paint);
+    canvas.drawLine(Offset(size.width * 0.68, size.height * 0.35), Offset(size.width * 0.68, size.height * 0.85), paint);
   }
 
   @override
