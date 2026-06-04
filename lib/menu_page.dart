@@ -3,6 +3,7 @@
   import 'package:http/http.dart' as http;
   import 'cart_manager.dart';
   import 'cart.dart';
+  import 'profile.dart';
 
   class MenuPage extends StatefulWidget {
     const MenuPage({super.key});
@@ -413,41 +414,47 @@
       );
     }
 
-    Widget _buildFAB() {
-      return FloatingActionButton(
-        onPressed: () {},
-        backgroundColor: primaryGreen,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.qr_code_scanner, color: Colors.white),
-      );
-    }
+  Widget _buildFAB() {
+    return FloatingActionButton(
+      onPressed: () {
+        // Open QR Scanner
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("QR Scanner Opened")));
+      },
+      backgroundColor: primaryGreen,
+      elevation: 4,
+      shape: const CircleBorder(),
+      child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
+    );
+  }
 
-    Widget _buildBottomNav() {
-      return BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8.0,
-        color: const Color(0xFFEBE5D9),
-        elevation: 10,
-        child: SizedBox(
-          height: 65,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildNavItem(Icons.home_filled, 'Home', 0, onTap: () {
-                setState(() => _bottomNavIndex = 0);
-                Navigator.pop(context); 
-              }),
-              _buildNavItem(Icons.local_cafe, 'Menu', 1, onTap: () {
-                setState(() => _bottomNavIndex = 1);
-              }),
-              const SizedBox(width: 48), 
-              _buildNavItem(Icons.receipt_long, 'History', 2, onTap: () => setState(() => _bottomNavIndex = 2)),
-              _buildNavItem(Icons.person, 'Profile', 3, onTap: () => setState(() => _bottomNavIndex = 3)),
-            ],
-          ),
+  Widget _buildBottomNav() {
+    return BottomAppBar(
+      shape: const CircularNotchedRectangle(),
+      notchMargin: 8.0,
+      color: const Color(0xFFEBE5D9),
+      elevation: 10,
+      child: SizedBox(
+        height: 65,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildNavItem(Icons.home_filled, 'Home', 0, onTap: () {
+              Navigator.popUntil(context, (route) => route.isFirst);
+            }),
+            _buildNavItem(Icons.local_cafe, 'Menu', 1, onTap: () {
+              setState(() => _bottomNavIndex = 1);
+            }),
+            const SizedBox(width: 48), // Leaves space for the floating QR Button
+            _buildNavItem(Icons.receipt_long, 'History', 2, onTap: () {}), // Add history routing later
+            _buildNavItem(Icons.person, 'Profile', 3, onTap: () {
+               // Route to profile page
+               Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ProfilePage()));
+            }),
+          ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
     Widget _buildNavItem(IconData icon, String label, int index, {required VoidCallback onTap}) {
       final isActive = _bottomNavIndex == index;

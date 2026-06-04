@@ -3,6 +3,16 @@ import 'takeout.dart';
 import 'menu_page.dart';
 import 'splash.dart';
 import 'payment.dart';
+import 'profile.dart';
+
+class GlobalState {
+  static String? userName;
+  static bool showRewardPopup = false;
+  static int vouchersCount = 0;
+  static bool bannerBonusClaimed = false;
+  static int currentCardStamps = 0;
+}
+
 
 void main() {
   runApp(const MyApp());
@@ -190,85 +200,88 @@ class HomeScreen extends StatefulWidget {
     );
   }
 
-  Widget _buildStampTrackerCard() {
-    Widget buildStampNode(int index) {
-      bool isFilled = index < GlobalState.currentCardStamps; 
-      return Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: isFilled ? lightGreenCard : const Color(0xFFF4F1E1),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isFilled ? primaryGreen : Colors.grey.shade300,
-            width: isFilled ? 2.5 : 1,
-          ),
-        ),
-        child: Center(
-          child: Icon(
-            Icons.local_cafe,
-            size: 22,
-            color: isFilled ? primaryGreen : Colors.grey.shade400,
-          ),
-        ),
-      );
-    }
+  // Widget _buildStampTrackerCard() {
+  //   Widget buildStampNode(int index) {
+  //     bool isFilled = index < GlobalState.currentCardStamps; 
+  //     return Container(
+  //       width: 52,
+  //       height: 52,
+  //       decoration: BoxDecoration(
+  //         color: isFilled ? lightGreenCard : const Color(0xFFF4F1E1),
+  //         shape: BoxShape.circle,
+  //         border: Border.all(
+  //           color: isFilled ? primaryGreen : Colors.grey.shade300,
+  //           width: isFilled ? 2.5 : 1,
+  //         ),
+  //       ),
+  //       child: Center(
+  //         child: Icon(
+  //           Icons.local_cafe,
+  //           size: 22,
+  //           color: isFilled ? primaryGreen : Colors.grey.shade400,
+  //         ),
+  //       ),
+  //     );
+  //   }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Lumiora Rewards Club', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: textDark)),
-              Text('${GlobalState.currentCardStamps} / 10 Stamps', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryGreen)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(5, (index) => buildStampNode(index)),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(5, (index) => buildStampNode(index + 5)),
-          ),
-        ],
-      ),
-    );
-  }
+  //   return Container(
+  //     width: double.infinity,
+  //     padding: const EdgeInsets.all(18),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(20),
+  //       boxShadow: [
+  //         BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+  //       ],
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Row(
+  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //           children: [
+  //             Text('Lumiora Rewards Club', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: textDark)),
+  //             Text('${GlobalState.currentCardStamps} / 10 Stamps', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryGreen)),
+  //           ],
+  //         ),
+  //         const SizedBox(height: 16),
+  //         Row(
+  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //           children: List.generate(5, (index) => buildStampNode(index)),
+  //         ),
+  //         const SizedBox(height: 12),
+  //         Row(
+  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //           children: List.generate(5, (index) => buildStampNode(index + 5)),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  void _onFooterItemTapped(int index) {
-    if (index == 0) return; 
+ void _onFooterItemTapped(int index) {
+    if (index == _bottomNavIndex) return; 
 
     if (index == 1) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const MenuPage()),
       ).then((_) {
-        if (mounted) {
-          setState(() {
-            _bottomNavIndex = 0;
-          });
-        }
+        if (mounted) setState(() => _bottomNavIndex = 0);
+      });
+    } else if (index == 3) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const ProfilePage()),
+      ).then((_) {
+        if (mounted) setState(() => _bottomNavIndex = 0);
       });
     } else {
       setState(() {
         _bottomNavIndex = index;
       });
     }
-  }
+  }   
 
   void _navigateToMenu() {
     Navigator.push(
@@ -317,8 +330,8 @@ class HomeScreen extends StatefulWidget {
                     children: [
                       const SizedBox(height: 16),
                       _buildActionButtons(),
-                      const SizedBox(height: 16),
-                      _buildStampTrackerCard(), 
+                      // const SizedBox(height: 16),
+                      // _buildStampTrackerCard(), 
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -392,8 +405,8 @@ class HomeScreen extends StatefulWidget {
                   Row(
                     children: [
                       // Badge Kecil: Membaca dari Total Stamps
-                      _buildStatBadge(Icons.workspace_premium, GlobalState.totalStamps.toString(), 'Stamps'), 
-                      const SizedBox(width: 12),
+                      // _buildStatBadge(Icons.workspace_premium, GlobalState.totalStamps.toString(), 'Stamps'), 
+                      // const SizedBox(width: 12),
                       // Badge Voucher: Terhubung langsung ke GlobalState.vouchersCount
                       _buildStatBadge(Icons.confirmation_num, GlobalState.vouchersCount.toString(), 'Vouchers'),
                     ],
@@ -870,12 +883,16 @@ class HomeScreen extends StatefulWidget {
     );
   }
 
-  Widget _buildFAB() {
+Widget _buildFAB() {
     return FloatingActionButton(
-      onPressed: () {},
+      onPressed: () {
+        // Open QR Scanner
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("QR Scanner Opened")));
+      },
       backgroundColor: primaryGreen,
+      elevation: 4,
       shape: const CircleBorder(),
-      child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+      child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
     );
   }
 
@@ -890,9 +907,10 @@ class HomeScreen extends StatefulWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // Notice how we include the onTap parameter here!
             _buildNavItem(Icons.home_filled, 'Home', 0, onTap: () => _onFooterItemTapped(0)),
             _buildNavItem(Icons.local_cafe, 'Menu', 1, onTap: () => _onFooterItemTapped(1)),
-            const SizedBox(width: 60), 
+            const SizedBox(width: 48), // Leaves space for the floating QR Button
             _buildNavItem(Icons.receipt_long, 'History', 2, onTap: () => _onFooterItemTapped(2)),
             _buildNavItem(Icons.person, 'Profile', 3, onTap: () => _onFooterItemTapped(3)),
           ],

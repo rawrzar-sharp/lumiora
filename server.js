@@ -168,6 +168,38 @@ app.get('/api/menu', async (req, res) => {
   }
 });
 
+// Unified Login / Sign Up Endpoint
+app.post('/api/auth', async (req, res) => {
+    const { contactInfo, password } = req.body;
+
+    if (!contactInfo || !password) {
+        return res.status(400).json({ success: false, message: "Please provide contact info and password" });
+    }
+
+    try {
+        const [users] = await pool.execute('SELECT * FROM customers WHERE contact_info = ?', [contactInfo]);
+
+        if (users.length > 0) {
+            const user = users[0];
+            if (user.password === password) {
+                res.status(200).json({ success: true, message: "Login successful", user });
+            } else {
+                res.status(401).json({ success: false, message: "Incorrect password" });
+            }
+        } else {
+            const [result] = await pool.execute(
+                'INSERT INTO customers (contact_info, password, loyalty_stamps, vouchers) VALUES (?, ?, 0, 0)', 
+                [contactInfo, password]
+            );
+            const [newUser] = await pool.execute('SELECT * FROM customers WHERE id = ?', [result.insertId]);
+            res.status(201).json({ success: true, message: "Account created", user: newUser[0] });
+        }
+    } catch (error) {
+        console.error("Auth Error:", error);
+        res.status(500).json({ success: false, error: "Internal Server Error" });
+    }
+});
+
 // Start the service
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

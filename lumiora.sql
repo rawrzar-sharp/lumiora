@@ -103,6 +103,17 @@ CREATE TABLE `report_hourly_orders_daily` (
   UNIQUE KEY `idx_date_hour` (`report_date`, `order_hour`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS `customers` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `contact_info` VARCHAR(50) NOT NULL UNIQUE,
+  `password` VARCHAR(255) NOT NULL,
+  `name` VARCHAR(100) DEFAULT 'Guest',
+  `loyalty_stamps` INT DEFAULT 0,
+  `vouchers` INT DEFAULT 0,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+  ALTER TABLE customers ADD UNIQUE (contact_info);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- =========================================================================
 -- 2. CORE SEED DATA (Menu Categories & Menu Items)
 -- =========================================================================
