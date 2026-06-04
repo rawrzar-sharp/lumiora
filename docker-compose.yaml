@@ -1,0 +1,32 @@
+services:
+  # Your existing database
+  lumiora-db:
+    image: mysql:8.0
+    container_name: lumiora_mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      MYSQL_DATABASE: 'lumiora'
+    volumes:
+      - lumiora_db_data:/var/lib/mysql
+      - ./lumiora.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # Add this new backend service
+  lumiora-api:
+    build: .
+    container_name: lumiora_api
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: "lumiora-db"
+      DB_PORT: "3306"
+      DB_USER: "root"
+      DB_PASSWORD: ""
+      DB_NAME: "lumiora"
+    depends_on:
+      - lumiora-db
+    restart: always
+
+volumes:
+  lumiora_db_data:

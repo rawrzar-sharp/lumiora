@@ -11,7 +11,8 @@ app.use(express.json());
 
 // Initialize MySQL Database Connection Pool
 const pool = mysql.createPool({
-    host: process.env.DB_HOST || '127.0.0.1',
+    host: process.env.DB_HOST || 'lumiora-db', // Use the service name!    port: process.env.DB_PORT || 33060, // Make sure this is here!
+    port: process.env.DB_PORT || 3306,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'lumiora',
