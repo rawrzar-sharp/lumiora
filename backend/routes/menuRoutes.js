@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, adminOnly } = require('../middleware/auth');
 const {
-  getAllMenu, getMenuById, getMenuByCategory, createMenu, updateMenu, deleteMenu
+  getAllMenu, getMenuById, getMenuByCategory, createMenu, updateMenu, deleteMenu, updateStock
 } = require('../controllers/menuController');
 
 /**
@@ -82,6 +82,7 @@ router.get('/category/:categoryId', getMenuByCategory);
 router.get('/:id', getMenuById);
 router.post('/', authenticate, adminOnly, createMenu);
 router.put('/:id', authenticate, adminOnly, updateMenu);
+router.patch('/:id/stock', updateStock);
 router.delete('/:id', authenticate, adminOnly, deleteMenu);
 
 module.exports = router;

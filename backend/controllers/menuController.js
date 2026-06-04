@@ -48,13 +48,13 @@ exports.getMenuByCategory = async (req, res, next) => {
 
 exports.createMenu = async (req, res, next) => {
   try {
-    const { category_id, item_name, description, image_url, price, is_Available } = req.body;
+    const { category_id, item_name, description, image_url, price, stock, is_Available } = req.body;
     if (!category_id || !item_name || !price) {
       return res.status(400).json({ success: false, message: 'category_id, item_name, and price are required' });
     }
     const [result] = await req.db.query(
-      'INSERT INTO menu (category_id, item_name, description, image_url, price, is_Available) VALUES (?, ?, ?, ?, ?, ?)',
-      [category_id, item_name, description || '', image_url || '', price, is_Available !== undefined ? is_Available : 1]
+      'INSERT INTO menu (category_id, item_name, description, image_url, price, stock, is_Available) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [category_id, item_name, description || '', image_url || '', price, stock ?? 0, is_Available !== undefined ? is_Available : 1]
     );
     res.status(201).json({ success: true, message: 'Menu item created', id: result.insertId });
   } catch (error) {
@@ -64,15 +64,39 @@ exports.createMenu = async (req, res, next) => {
 
 exports.updateMenu = async (req, res, next) => {
   try {
-    const { category_id, item_name, description, image_url, price, is_Available } = req.body;
+    const { category_id, item_name, description, image_url, price, stock, is_Available } = req.body;
     const [result] = await req.db.query(
-      'UPDATE menu SET category_id = ?, item_name = ?, description = ?, image_url = ?, price = ?, is_Available = ? WHERE id = ?',
-      [category_id, item_name, description, image_url, price, is_Available, req.params.id]
+      'UPDATE menu SET category_id = ?, item_name = ?, description = ?, image_url = ?, price = ?, stock = ?, is_Available = ? WHERE id = ?',
+      [category_id, item_name, description, image_url, price, stock, is_Available, req.params.id]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Menu item not found' });
     }
     res.json({ success: true, message: 'Menu item updated' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateStock = async (req, res, next) => {
+  try {
+    const { stock, delta } = req.body;
+    const [current] = await req.db.query('SELECT stock FROM menu WHERE id = ?', [req.params.id]);
+
+    if (current.length === 0) {
+      return res.status(404).json({ success: false, message: 'Menu item not found' });
+    }
+
+    const currentStock = Number(current[0].stock || 0);
+    const nextStock = Number.isFinite(Number(stock))
+      ? Number(stock)
+      : currentStock + Number(delta || 0);
+
+    const safeStock = Math.max(0, nextStock);
+
+    await req.db.query('UPDATE menu SET stock = ? WHERE id = ?', [safeStock, req.params.id]);
+
+    res.json({ success: true, message: 'Stock updated', stock: safeStock });
   } catch (error) {
     next(error);
   }
