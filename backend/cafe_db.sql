@@ -141,7 +141,7 @@ CREATE TABLE `orders` (
 
 -- --------------------------------------------------------
 
-// Bundle tableeee
+--Bundle tableeee
 CREATE TABLE bundles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
