@@ -397,10 +397,10 @@ class HomeScreen extends StatefulWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Hello, Rafdah!',
-                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: 0.5),
-                  ),
+                      Text(
+                        'Hello, ${GlobalState.userName?.split(' ')[0] ?? 'Guest'}!',
+                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+                      ),
                   const SizedBox(height: 6), 
                   Row(
                     children: [

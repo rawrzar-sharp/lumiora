@@ -169,8 +169,9 @@ app.get('/api/menu', async (req, res) => {
 });
 
 // Unified Login / Sign Up Endpoint
+// Unified Login / Sign Up Endpoint
 app.post('/api/auth', async (req, res) => {
-    const { contactInfo, password } = req.body;
+    const { name, contactInfo, password } = req.body;
 
     if (!contactInfo || !password) {
         return res.status(400).json({ success: false, message: "Please provide contact info and password" });
@@ -181,18 +182,21 @@ app.post('/api/auth', async (req, res) => {
 
         if (users.length > 0) {
             const user = users[0];
+            // Validating existing user
             if (user.password === password) {
-                res.status(200).json({ success: true, message: "Login successful", user });
+                res.status(200).json({ success: true, message: "Welcome back to Lumiora!", user });
             } else {
-                res.status(401).json({ success: false, message: "Incorrect password" });
+                res.status(401).json({ success: false, message: "Incorrect password for this account." });
             }
         } else {
+            // New user validation & creation
+            const newName = name && name.trim() !== '' ? name : 'Valued Guest';
             const [result] = await pool.execute(
-                'INSERT INTO customers (contact_info, password, loyalty_stamps, vouchers) VALUES (?, ?, 0, 0)', 
-                [contactInfo, password]
+                'INSERT INTO customers (contact_info, password, name, loyalty_stamps, vouchers) VALUES (?, ?, ?, 0, 0)', 
+                [contactInfo, password, newName]
             );
             const [newUser] = await pool.execute('SELECT * FROM customers WHERE id = ?', [result.insertId]);
-            res.status(201).json({ success: true, message: "Account created", user: newUser[0] });
+            res.status(201).json({ success: true, message: "Welcome to the Lumiora family!", user: newUser[0] });
         }
     } catch (error) {
         console.error("Auth Error:", error);
