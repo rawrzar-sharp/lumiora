@@ -297,10 +297,19 @@ class _ProfilePageState extends State<ProfilePage> {
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   children: [
-                    _buildSettingsTile(Icons.person_outline, "Personal Information"),
-                    _buildSettingsTile(Icons.payment_outlined, "Payment Methods"),
-                    _buildSettingsTile(Icons.history, "Order History"),
-                    _buildSettingsTile(Icons.notifications_outlined, "Notifications"),
+                    _buildSettingsTile(Icons.person_outline, "Personal Information", onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPlaceholder(title: "Personal Information")));
+                    }),
+                    _buildSettingsTile(Icons.payment_outlined, "Payment Methods", onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPlaceholder(title: "Payment Methods")));
+                    }),
+                    _buildSettingsTile(Icons.history, "Order History", onTap: () {
+                      // If you already have an Order History page, link it here!
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPlaceholder(title: "Order History")));
+                    }),
+                    _buildSettingsTile(Icons.notifications_outlined, "Notifications", onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPlaceholder(title: "Notifications")));
+                    }),
                     _buildSettingsTile(Icons.help_outline, "Support & FAQ", isLast: !isLoggedIn),
                     if (isLoggedIn)
                       ListTile(
@@ -455,14 +464,15 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSettingsTile(IconData icon, String title, {bool isLast = false}) {
+  // Replace your existing _buildSettingsTile function with this:
+  Widget _buildSettingsTile(IconData icon, String title, {bool isLast = false, VoidCallback? onTap}) {
     return Column(
       children: [
         ListTile(
           leading: Icon(icon, color: primaryGreen),
           title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           trailing: const Icon(Icons.chevron_right, color: Colors.black26),
-          onTap: () {},
+          onTap: onTap, // Added this!
         ),
         if (!isLast) Divider(height: 1, color: Colors.grey.shade200, indent: 56),
       ],
@@ -523,6 +533,36 @@ class _ProfilePageState extends State<ProfilePage> {
             Icon(icon, color: color, size: 26),
             const SizedBox(height: 4),
             Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: isActive ? FontWeight.w800 : FontWeight.normal)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SettingsPlaceholder extends StatelessWidget {
+  final String title;
+  const SettingsPlaceholder({Key? key, required this.title}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFEFECE3),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFEFECE3),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: Text(title, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.construction, size: 80, color: Color(0xFFB59A57)),
+            const SizedBox(height: 16),
+            Text("$title Page", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const Text("This feature is currently under development.", style: TextStyle(color: Colors.grey)),
           ],
         ),
       ),

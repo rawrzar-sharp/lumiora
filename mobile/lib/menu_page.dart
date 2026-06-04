@@ -4,6 +4,7 @@
   import 'cart_manager.dart';
   import 'cart.dart';
   import 'profile.dart';
+  import 'main.dart'; 
 
   class MenuPage extends StatefulWidget {
     const MenuPage({super.key});
@@ -717,13 +718,32 @@
               IconButton(
                 icon: Icon(Icons.add, color: primaryGreen, size: 28), 
                 onPressed: () {
+                  if (GlobalState.userName == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Please Login / Sign Up in Profile to start ordering!'),
+                        backgroundColor: primaryGreen,
+                        action: SnackBarAction(
+                          label: 'Login',
+                          textColor: Colors.white,
+                          onPressed: () {
+                            // Navigate to Profile to login
+                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ProfilePage()));
+                          },
+                        ),
+                      )
+                    );
+                    return; // Stop the function here if not logged in
+                  }
+
+                  // 2. If logged in, proceed normally
                   final List spiceOpts = item['spiceOptions'] ?? [];
                   final Map addonOpts = item['addonOptions'] ?? {};
-                  
+
                   if (spiceOpts.isNotEmpty || addonOpts.isNotEmpty) {
                     _showModifierSheet(context, item);
                   } else {
-                    CartManager.instance.addItem(item); 
+                    CartManager.instance.addItem(item);
                   }
                 },
               ),

@@ -111,7 +111,6 @@ CREATE TABLE IF NOT EXISTS `customers` (
   `loyalty_stamps` INT DEFAULT 0,
   `vouchers` INT DEFAULT 0,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
-  ALTER TABLE customers ADD UNIQUE (contact_info);
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================================================
