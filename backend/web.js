@@ -1,0 +1,75 @@
+require('dotenv').config();
+
+const express = require('express');
+const cors = require('cors');
+const pool = require('./config/db');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger/swagger');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+app.use((req, res, next) => {
+  req.db = pool;
+  next();
+});
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Cafe API Docs',
+}));
+
+app.use('/api/bundles', require('./routes/bundleRoutes'));
+app.use('/api/orders', require('./routes/orderRoutes'));
+app.use('/api/customers', require('./routes/customerRoutes'));
+app.use('/api/menu', require('./routes/menuRoutes'));
+app.use('/api/categories', require('./routes/categoryRoutes'));
+app.use('/api/checkouts', require('./routes/checkoutRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/auth', require('./routes/authRoutes'));
+
+app.get('/products', async (req, res, next) => {
+  try {
+    const [menu] = await req.db.query(
+      `SELECT m.*, c.name as category_name
+       FROM menu m LEFT JOIN category c ON m.category_id = c.id ORDER BY m.id`
+    );
+    res.json({ success: true, count: menu.length, data: menu });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Cafe API is running!',
+    version: '1.0.0',
+    docs: '/api-docs',
+    endpoints: {
+      bundles: '/api/bundles',
+      orders: '/api/orders',
+      customers: '/api/customers',
+      menu: '/api/menu',
+      categories: '/api/categories',
+      checkouts: '/api/checkouts',
+      users: '/api/users',
+      auth: '/api/auth',
+    },
+  });
+});
+
+app.use((err, req, res, next) => {
+  console.error('Error:', err.message);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error',
+  });
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`API Docs: http://localhost:${PORT}/api-docs`);
+});

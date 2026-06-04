@@ -1,0 +1,25 @@
+{
+  "name": "cafe-api",
+  "version": "1.0.0",
+  "description": "Cafe ordering system REST API",
+  "main": "web.js",
+  "scripts": {
+    "start": "node web.js",
+    "dev": "node --watch web.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.6.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
+  }
+}
