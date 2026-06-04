@@ -200,65 +200,6 @@ class HomeScreen extends StatefulWidget {
     );
   }
 
-  // Widget _buildStampTrackerCard() {
-  //   Widget buildStampNode(int index) {
-  //     bool isFilled = index < GlobalState.currentCardStamps; 
-  //     return Container(
-  //       width: 52,
-  //       height: 52,
-  //       decoration: BoxDecoration(
-  //         color: isFilled ? lightGreenCard : const Color(0xFFF4F1E1),
-  //         shape: BoxShape.circle,
-  //         border: Border.all(
-  //           color: isFilled ? primaryGreen : Colors.grey.shade300,
-  //           width: isFilled ? 2.5 : 1,
-  //         ),
-  //       ),
-  //       child: Center(
-  //         child: Icon(
-  //           Icons.local_cafe,
-  //           size: 22,
-  //           color: isFilled ? primaryGreen : Colors.grey.shade400,
-  //         ),
-  //       ),
-  //     );
-  //   }
-
-  //   return Container(
-  //     width: double.infinity,
-  //     padding: const EdgeInsets.all(18),
-  //     decoration: BoxDecoration(
-  //       color: Colors.white,
-  //       borderRadius: BorderRadius.circular(20),
-  //       boxShadow: [
-  //         BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
-  //       ],
-  //     ),
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //           children: [
-  //             Text('Lumiora Rewards Club', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: textDark)),
-  //             Text('${GlobalState.currentCardStamps} / 10 Stamps', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryGreen)),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 16),
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //           children: List.generate(5, (index) => buildStampNode(index)),
-  //         ),
-  //         const SizedBox(height: 12),
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //           children: List.generate(5, (index) => buildStampNode(index + 5)),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
  void _onFooterItemTapped(int index) {
     if (index == _bottomNavIndex) return; 
 
