@@ -55,14 +55,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
     try {
       // Use backend auth endpoints. When signing up call /register, otherwise /login
-          // Use the unified auth endpoint in mobile/server.js which accepts
-          // { name, contactInfo, password } for sign-up and { contactInfo, password }
-          // for sign-in.
-          final String url = '$_apiBase/api/auth';
+          // Backend expects separate endpoints and `email` field:
+          // POST /api/auth/register -> { name, email, password }
+          // POST /api/auth/login -> { email, password }
+          final String url = isSignUp ? '$_apiBase/api/auth/register' : '$_apiBase/api/auth/login';
 
           final Map<String, dynamic> payload = isSignUp
-            ? {'name': name, 'contactInfo': contact, 'password': password}
-            : {'contactInfo': contact, 'password': password};
+              ? {'name': name, 'email': contact, 'password': password}
+              : {'email': contact, 'password': password};
 
       final response = await http.post(
         Uri.parse(url),
@@ -70,7 +70,13 @@ class _ProfilePageState extends State<ProfilePage> {
         body: jsonEncode(payload),
       );
 
-      final result = jsonDecode(response.body);
+      Map<String, dynamic> result = {};
+      try {
+        result = jsonDecode(response.body);
+      } catch (_) {
+        // Non-JSON response (e.g., HTML 404) — treat as failure
+        result = {'success': false, 'message': 'Unexpected server response'};
+      }
 
       if (response.statusCode >= 200 && result['success'] == true) {
         final data = result['data'] ?? result['user'] ?? {};

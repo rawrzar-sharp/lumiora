@@ -6,6 +6,7 @@
   import 'cart.dart';
   import 'profile.dart';
   import 'main.dart'; 
+  import 'app_config.dart';
 
   class MenuPage extends StatefulWidget {
     const MenuPage({super.key});
@@ -17,7 +18,7 @@
     final Color primaryGreen = const Color(0xFF7B8C2A);
     final Color textDark = const Color(0xFF2C3028);
     final Color lightGreenCard = const Color(0xFFDCE2B9);
-    String get baseUrl => kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
+    String get baseUrl => AppConfig.backendUrl;
     
     List<Map<String, dynamic>> _menu = [];
     bool _loading = true;
@@ -109,15 +110,20 @@
 
         if (res.statusCode == 200) {
           final data = json.decode(res.body);
-          final List list = data['menu'] ?? [];
+          // support multiple API shapes: { menu: [...] } or { data: [...] }
+          final List list = (data['menu'] is List)
+              ? List.from(data['menu'])
+              : (data['data'] is List) ? List.from(data['data']) : [];
           setState(() {
             _menu = list.map<Map<String, dynamic>>((item) {
               List<String> prefs = [];
               Map<String, int> addons = {};
-              if (item['customization_options'] != null) {
+
+              // customization options may be stored as JSON or missing
+              final customRaw = item['customization_options'] ?? item['custom_options'] ?? item['custom'] ?? null;
+              if (customRaw != null) {
                 try {
-                  final raw = item['customization_options'];
-                  final parsed = raw is String ? json.decode(raw) : raw;
+                  final parsed = customRaw is String ? json.decode(customRaw) : customRaw;
                   if (parsed['preferences'] != null) {
                     prefs = List<String>.from(parsed['preferences']);
                   }
@@ -128,17 +134,25 @@
                   }
                 } catch (_) {}
               }
+
+              // Support both 'name' and legacy 'item_name'
+              final rawName = item['name'] ?? item['item_name'] ?? '';
+              final rawDesc = item['description'] ?? item['desc'] ?? '';
+              final rawImg = item['image_url'] ?? item['image'] ?? item['img'] ?? '';
+              final rawCategoryId = item['category_id'] ?? item['categoryId'] ?? item['cat_id'] ?? 0;
+              final rawPrice = item['base_price'] ?? item['price'] ?? item['amount'] ?? 0;
+
               return {
                 'id': item['id']?.toString() ?? '0',
-                'name': (item['name'] ?? '').toString(),
-                'description': (item['description'] ?? '').toString(),
-                'category': _catName(item['category_id']),
-                'basePrice': double.tryParse((item['base_price'] ?? 0).toString())?.round() ?? 0,
-                'img': _resolveImage(item['name'], item['image_url'], item['category_id']),
+                'name': rawName.toString(),
+                'description': rawDesc.toString(),
+                'category': _catName(rawCategoryId),
+                'basePrice': double.tryParse(rawPrice.toString())?.round() ?? 0,
+                'img': _resolveImage(rawName, rawImg, rawCategoryId),
                 'selectedSpice': prefs.isNotEmpty ? prefs[0] : '',
-                'spiceOptions': prefs,                  
-                'selectedAddons': <String>[],           
-                'addonOptions': addons,                 
+                'spiceOptions': prefs,
+                'selectedAddons': <String>[],
+                'addonOptions': addons,
               };
             }).toList();
             
@@ -177,8 +191,9 @@
       }
     }
 
-  String _resolveImage(dynamic name, dynamic url, dynamic categoryId) {
-      final String providedUrl = url?.toString() ?? '';
+String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
+  print("DEBUG: Processing item: $name | URL: $image_url");
+  final String providedUrl = image_url?.toString() ?? '';
       
       if (providedUrl.isNotEmpty) {
         // 1. If the database explicitly provides a local asset path, use it directly!
@@ -696,7 +711,7 @@
     List<Widget> _buildItemsForCategory(String category) {
       final items = _groupedMenu[category] ?? [];
       return items.map((item) {
-        final String imagePath = item['img']?.toString() ?? '';
+        final String imagePath = item['image_url']?.toString() ?? '';
         return Container(
           margin: const EdgeInsets.only(bottom: 14),
           padding: const EdgeInsets.all(12),

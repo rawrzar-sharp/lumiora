@@ -5,8 +5,8 @@ import {
   PieChart, Settings, LogOut, Search, Bell, MoreVertical 
 } from 'lucide-react';
 
-// URL Backend Cloud Kamu yang sudah Online
-const API_URL = 'http://43.133.144.212:1234';
+// URL Backend (override with REACT_APP_API_URL in production/dev)
+const API_URL = process.env.REACT_APP_API_URL || 'http://43.133.144.212:1234';
 
 function App() {
   // --- STATE MANAGEMENT ---
@@ -76,7 +76,8 @@ function App() {
   const menuItems = [
     { name: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['admin'] }, // Hanya admin
     { name: 'Pesanan', icon: <ShoppingCart size={20} />, roles: ['admin', 'staff'] }, // Admin & Staff
-    { name: 'Menu / Cek Stok', icon: <Coffee size={20} />, roles: ['admin', 'staff'] }, // Admin & Staff
+    { name: 'Menu / Cek Stok', icon: <Coffee size={20} />, roles: ['staff'] }, // Admin & Staff
+    { name: 'Manage', icon: <Coffee size={20} />, roles: ['admin'] },
     { name: 'Pelanggan', icon: <Users size={20} />, roles: ['admin'] },
     { name: 'Laporan', icon: <PieChart size={20} />, roles: ['admin'] },
     { name: 'Pengaturan', icon: <Settings size={20} />, roles: ['admin'] },

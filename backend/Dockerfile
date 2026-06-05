@@ -4,9 +4,10 @@ WORKDIR /app
 
 COPY package*.json ./
 RUN npm install --production
-
+COPY assets/ ./assets/
 COPY . .
 
 EXPOSE 3000
 
 CMD ["node", "web.js"]
+

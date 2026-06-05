@@ -1,9 +1,0 @@
-services:
-  backend:
-    build: .
-    container_name: cafe_backend
-    ports:
-      - "1234:3000"
-    env_file:
-      - .env
-    restart: unless-stopped

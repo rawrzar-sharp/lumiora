@@ -198,16 +198,17 @@ app.get('/api/menu', async (req, res) => {
 // Unified Login / Sign Up Endpoint
 app.post('/api/auth', async (req, res) => {
     const { name, contactInfo, password } = req.body;
-
+    // Searching the 'users' table by email instead of contact_info
+    const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
     if (!contactInfo || !password) {
         return res.status(400).json({ success: false, message: "Please provide contact info and password" });
     }
 
     try {
-    const [users] = await pool.execute('SELECT * FROM customers WHERE contact_info = ?', [contactInfo]);
+    const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
 
-    if (users.length > 0) {
-      const user = users[0];
+    if (rows.length > 0) {
+      const user = rows[0];
       // Validating existing user using bcrypt
       const match = await bcrypt.compare(password, user.password);
       if (match) {
@@ -224,12 +225,12 @@ app.post('/api/auth', async (req, res) => {
       const newName = name && name.trim() !== '' ? name : 'Valued Guest';
       const hashed = await bcrypt.hash(password, 10);
       const [result] = await pool.execute(
-        'INSERT INTO customers (contact_info, password, name, loyalty_stamps, vouchers) VALUES (?, ?, ?, 0, 0)', 
-        [contactInfo, hashed, newName]
+        'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)',
+        [newName, email, hashed]
       );
-      const [newUserRows] = await pool.execute('SELECT id, contact_info, name, loyalty_stamps, vouchers, created_at FROM customers WHERE id = ?', [result.insertId]);
+      const [newUserRows] = await pool.execute('SELECT id, name, email, role, created_at FROM users WHERE id = ?', [result.insertId]);
       const newUser = newUserRows[0] || null;
-      console.log(`[auth] created new user id=${result.insertId} contact=${contactInfo}`);
+      console.log(`[auth] created new user id=${result.insertId} email=${email}`);
       res.status(201).json({ success: true, message: "Welcome to the Lumiora family!", user: newUser });
     }
     } catch (error) {
