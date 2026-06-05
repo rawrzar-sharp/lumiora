@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import 'main.dart'; 
 import 'menu_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -21,11 +23,13 @@ class _ProfilePageState extends State<ProfilePage> {
   int _bottomNavIndex = 3; 
   bool isLoggedIn = false;
   Map<String, dynamic>? userData;
-  int loyaltyStamps = 0; 
+  
 
   final TextEditingController nameController = TextEditingController();
   final TextEditingController contactController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+
+  String get _apiBase => kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
 
   @override
   void initState() {
@@ -33,7 +37,7 @@ class _ProfilePageState extends State<ProfilePage> {
     // Check if user is already logged in globally
     if (GlobalState.userName != null) {
       isLoggedIn = true;
-      loyaltyStamps = GlobalState.currentCardStamps;
+      // keep state minimal; use GlobalState directly in build
     }
   }
 
@@ -50,29 +54,56 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     try {
+      // Use backend auth endpoints. When signing up call /register, otherwise /login
+          // Use the unified auth endpoint in mobile/server.js which accepts
+          // { name, contactInfo, password } for sign-up and { contactInfo, password }
+          // for sign-in.
+          final String url = '$_apiBase/api/auth';
+
+          final Map<String, dynamic> payload = isSignUp
+            ? {'name': name, 'contactInfo': contact, 'password': password}
+            : {'contactInfo': contact, 'password': password};
+
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:3000/api/auth'), 
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'name': name, 'contactInfo': contact, 'password': password}),
+        body: jsonEncode(payload),
       );
 
       final result = jsonDecode(response.body);
 
-      if (result['success']) {
+      if (response.statusCode >= 200 && result['success'] == true) {
+        final data = result['data'] ?? result['user'] ?? {};
         setState(() {
           isLoggedIn = true;
-          userData = result['user'];
-          loyaltyStamps = result['user']['loyalty_stamps'] ?? 0;
-          
+          userData = Map<String, dynamic>.from(data);
           // Sync with Global State across the app
-          GlobalState.userName = result['user']['name'];
-          GlobalState.vouchersCount = result['user']['vouchers'] ?? 0;
-          GlobalState.currentCardStamps = loyaltyStamps;
+          final int newStamps = (data['loyalty_stamps'] is int) ? data['loyalty_stamps'] : 0;
+          GlobalState.userName = data['name'] ?? contact;
+          GlobalState.vouchersCount = (data['vouchers'] is int) ? data['vouchers'] : 0;
+          GlobalState.currentCardStamps = newStamps;
         });
+
+        // Persist user info locally for next app start
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final Map<String, dynamic> persist = {
+            'id': data['id'] ?? data['user_id'] ?? null,
+            'name': data['name'] ?? contact,
+            'contactInfo': data['contactInfo'] ?? contact,
+            'vouchers': data['vouchers'] ?? GlobalState.vouchersCount,
+            'loyalty_stamps': GlobalState.currentCardStamps
+          };
+          await prefs.setString('user_data', jsonEncode(persist));
+        } catch (e) {
+          // ignore persist errors
+        }
+
         Navigator.of(context).pop(); // Close modal
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message']), backgroundColor: primaryGreen));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'] ?? 'Success'), backgroundColor: primaryGreen));
       } else {
-         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message']), backgroundColor: Colors.red));
+        final msg = result['message'] ?? 'Authentication failed';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to connect to Lumiora servers.')));
@@ -137,7 +168,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 decoration: BoxDecoration(color: isSignUp ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(30), boxShadow: isSignUp ? [BoxShadow(color: Colors.black12, blurRadius: 4)] : []),
-                                child: Center(child: Text("Join Now", style: TextStyle(fontWeight: FontWeight.bold, color: isSignUp ? primaryGreen : Colors.grey))),
+                                child: Center(child: Text("Login", style: TextStyle(fontWeight: FontWeight.bold, color: isSignUp ? primaryGreen : Colors.grey))),
                               ),
                             ),
                           ),
@@ -287,6 +318,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
               // Stamps View
               _buildStampsSection(),
+              const SizedBox(height: 12),
+              const Text("Preferences & Appearance", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1)),
+              const SizedBox(height: 8),
+              _buildPreferenceList(),
 
               const SizedBox(height: 32),
               const Text("SETTINGS & PREFERENCES", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1)),
@@ -315,12 +350,19 @@ class _ProfilePageState extends State<ProfilePage> {
                       ListTile(
                         leading: const Icon(Icons.logout, color: Colors.redAccent),
                         title: const Text("Sign Out", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                        onTap: () {
+                        onTap: () async {
+                          // Clear persisted user
+                          try {
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.remove('user_data');
+                          } catch (e) {}
+
                           setState(() { 
                             isLoggedIn = false; 
                             GlobalState.userName = null; 
                             GlobalState.vouchersCount = 0; 
-                            loyaltyStamps = 0; 
+                            GlobalState.currentCardStamps = 0; 
+                            userData = null;
                           });
                         },
                       ),
@@ -430,23 +472,23 @@ class _ProfilePageState extends State<ProfilePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text("LOYALTY STAMPS", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-              Container(
+                Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                child: Text("$loyaltyStamps/10", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold, fontSize: 13)),
+                child: Text("${GlobalState.currentCardStamps}/10", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold, fontSize: 13)),
               )
             ],
           ),
           const SizedBox(height: 6),
           const Text("Earn a free signature drink every 10 stamps.", style: TextStyle(fontSize: 12, color: Colors.black54)),
           const SizedBox(height: 24),
-          GridView.builder(
+              GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5, crossAxisSpacing: 12, mainAxisSpacing: 16),
             itemCount: 10,
             itemBuilder: (context, index) {
-              bool isStamped = index < loyaltyStamps;
+              bool isStamped = index < GlobalState.currentCardStamps;
               return Container(
                 decoration: BoxDecoration(
                   color: isStamped ? primaryGreen : Colors.white,
@@ -476,6 +518,29 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         if (!isLast) Divider(height: 1, color: Colors.grey.shade200, indent: 56),
       ],
+    );
+  }
+
+  // Add extra settings entries to improve UI/UX
+  Widget _buildPreferenceList() {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        children: [
+          _buildSettingsTile(Icons.palette, "Theme & Appearance", onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPlaceholder(title: "Theme & Appearance")));
+          }),
+          _buildSettingsTile(Icons.language, "Language & Locale", onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPlaceholder(title: "Language & Locale")));
+          }),
+          _buildSettingsTile(Icons.notifications, "Notification Preferences", onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPlaceholder(title: "Notification Preferences")));
+          }),
+          _buildSettingsTile(Icons.security, "Privacy & Security", onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPlaceholder(title: "Privacy & Security")));
+          }, isLast: true),
+        ],
+      ),
     );
   }
 

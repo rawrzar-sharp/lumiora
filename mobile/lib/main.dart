@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'takeout.dart';
 import 'menu_page.dart';
 import 'splash.dart';
@@ -14,7 +16,23 @@ class GlobalState {
 }
 
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Try to restore persisted user data from SharedPreferences
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString('user_data');
+    if (stored != null && stored.isNotEmpty) {
+      final Map<String, dynamic> data = jsonDecode(stored);
+      GlobalState.userName = data['name'] as String?;
+      GlobalState.vouchersCount = (data['vouchers'] is int) ? data['vouchers'] as int : int.tryParse('${data['vouchers']}') ?? 0;
+      GlobalState.currentCardStamps = (data['loyalty_stamps'] is int) ? data['loyalty_stamps'] as int : int.tryParse('${data['loyalty_stamps']}') ?? 0;
+    }
+  } catch (e) {
+    // ignore restore errors
+  }
+
   runApp(const MyApp());
 }
 

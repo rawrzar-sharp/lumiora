@@ -1,6 +1,7 @@
   import 'dart:convert';
   import 'package:flutter/material.dart';
   import 'package:http/http.dart' as http;
+  import 'package:flutter/foundation.dart';
   import 'cart_manager.dart';
   import 'cart.dart';
   import 'profile.dart';
@@ -16,7 +17,7 @@
     final Color primaryGreen = const Color(0xFF7B8C2A);
     final Color textDark = const Color(0xFF2C3028);
     final Color lightGreenCard = const Color(0xFFDCE2B9);
-    final String baseUrl = 'http://localhost:3000';
+    String get baseUrl => kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
     
     List<Map<String, dynamic>> _menu = [];
     bool _loading = true;

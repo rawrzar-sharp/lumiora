@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'cart_manager.dart';
 import 'takeout.dart';
 
@@ -16,7 +17,7 @@ class _CartPageState extends State<CartPage> {
   final Color lightCream = const Color(0xFFEBE5D9);
   
   // URL untuk memanggil gambar dari backend (FIX ISSUE 2)
-  final String baseUrl = 'http://localhost:3000'; 
+  String get baseUrl => kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000'; 
 
   @override
   void initState() {

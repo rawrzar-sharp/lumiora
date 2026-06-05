@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'cart_manager.dart';
 import 'payment.dart';
 import 'menu_page.dart';
@@ -18,7 +19,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
   final Color lightCream = const Color(0xFFEBE5D9);
   
   // Backend URL for fetching item images
-  final String baseUrl = 'http://localhost:3000'; 
+  String get baseUrl => kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000'; 
   final TextEditingController _notesController = TextEditingController();
 
   List<Map<String, dynamic>> get _cartItems => CartManager.instance.items;

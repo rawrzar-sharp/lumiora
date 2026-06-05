@@ -1,5 +1,6 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
+const bcrypt = require('bcryptjs');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -11,8 +12,8 @@ app.use(express.json());
 
 // Initialize MySQL Database Connection Pool
 const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'lumiora-db', // Use the service name!    port: process.env.DB_PORT || 33060, // Make sure this is here!
-    port: process.env.DB_PORT || 3306,
+  host: process.env.DB_HOST || '127.0.0.1',
+  port: process.env.DB_PORT || 3306,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'lumiora',
@@ -20,6 +21,8 @@ const pool = mysql.createPool({
     connectionLimit: 10,
     queueLimit: 0
 });
+
+console.log(`[server] DB_HOST=${process.env.DB_HOST || '127.0.0.1'} DB_PORT=${process.env.DB_PORT || 3306} DB_NAME=${process.env.DB_NAME || 'lumiora'}`);
 
 // Helper: Generate Unique Order Number (Menghasilkan Hex asli jika diinginkan)
 function generateOrderNumber() {
@@ -178,26 +181,34 @@ app.post('/api/auth', async (req, res) => {
     }
 
     try {
-        const [users] = await pool.execute('SELECT * FROM customers WHERE contact_info = ?', [contactInfo]);
+    const [users] = await pool.execute('SELECT * FROM customers WHERE contact_info = ?', [contactInfo]);
 
-        if (users.length > 0) {
-            const user = users[0];
-            // Validating existing user
-            if (user.password === password) {
-                res.status(200).json({ success: true, message: "Welcome back to Lumiora!", user });
-            } else {
-                res.status(401).json({ success: false, message: "Incorrect password for this account." });
-            }
-        } else {
-            // New user validation & creation
-            const newName = name && name.trim() !== '' ? name : 'Valued Guest';
-            const [result] = await pool.execute(
-                'INSERT INTO customers (contact_info, password, name, loyalty_stamps, vouchers) VALUES (?, ?, ?, 0, 0)', 
-                [contactInfo, password, newName]
-            );
-            const [newUser] = await pool.execute('SELECT * FROM customers WHERE id = ?', [result.insertId]);
-            res.status(201).json({ success: true, message: "Welcome to the Lumiora family!", user: newUser[0] });
-        }
+    if (users.length > 0) {
+      const user = users[0];
+      // Validating existing user using bcrypt
+      const match = await bcrypt.compare(password, user.password);
+      if (match) {
+        // Do not return password field
+        const { password: _, ...safeUser } = user;
+        console.log(`[auth] successful login for ${contactInfo}`);
+        res.status(200).json({ success: true, message: "Welcome back to Lumiora!", user: safeUser });
+      } else {
+        console.log(`[auth] failed login (wrong password) for ${contactInfo}`);
+        res.status(401).json({ success: false, message: "Incorrect password for this account." });
+      }
+    } else {
+      // New user validation & creation (hash password)
+      const newName = name && name.trim() !== '' ? name : 'Valued Guest';
+      const hashed = await bcrypt.hash(password, 10);
+      const [result] = await pool.execute(
+        'INSERT INTO customers (contact_info, password, name, loyalty_stamps, vouchers) VALUES (?, ?, ?, 0, 0)', 
+        [contactInfo, hashed, newName]
+      );
+      const [newUserRows] = await pool.execute('SELECT id, contact_info, name, loyalty_stamps, vouchers, created_at FROM customers WHERE id = ?', [result.insertId]);
+      const newUser = newUserRows[0] || null;
+      console.log(`[auth] created new user id=${result.insertId} contact=${contactInfo}`);
+      res.status(201).json({ success: true, message: "Welcome to the Lumiora family!", user: newUser });
+    }
     } catch (error) {
         console.error("Auth Error:", error);
         res.status(500).json({ success: false, error: "Internal Server Error" });

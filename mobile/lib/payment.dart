@@ -9,16 +9,6 @@ import 'package:http/http.dart' as http;
 import 'cart_manager.dart';
 import 'main.dart';
 
-// --- (Global State untuk menyimpan Data) ---
-class GlobalState {
-  static int totalStamps = 0;       // Untuk Kartu Kecil (Naik terus, tidak reset)
-  static int currentCardStamps = 0; // Untuk Kartu Besar (Maksimal 10 lalu reset)
-  static int vouchersCount = 1;     // Jumlah Voucher / Kupon Bonus
-  static bool showRewardPopup = false; // Trigger untuk menampilkan Popup di Home
-  static bool bannerBonusClaimed = false;
-  static Function()? onStampUpdated;
-}
-
 
 class PaymentPage extends StatefulWidget {
   final String orderType;
@@ -132,24 +122,21 @@ class _PaymentPageState extends State<PaymentPage> {
             backgroundColor: primaryGreen, 
             minimumSize: const Size(double.infinity, 45)
           ),
-          onPressed: () {
-            // 1. Hitung Stamps & Vouchers
-            GlobalState.totalStamps += widget.stampsEarned;
-            GlobalState.currentCardStamps += widget.stampsEarned;
+            onPressed: () {
+            // 1. Hitung Stamps & Vouchers using main GlobalState
+            GlobalState.currentCardStamps = (GlobalState.currentCardStamps ?? 0) + widget.stampsEarned;
 
             if (GlobalState.currentCardStamps >= 10) {
               int earnedVouchers = GlobalState.currentCardStamps ~/ 10;
-              GlobalState.vouchersCount += earnedVouchers;
+              GlobalState.vouchersCount = (GlobalState.vouchersCount ?? 0) + earnedVouchers;
               GlobalState.currentCardStamps = GlobalState.currentCardStamps % 10;
-              GlobalState.showRewardPopup = true; // Nyalakan trigger
+              GlobalState.showRewardPopup = true; // trigger popup on home
             }
 
-            // 2. Bersihkan keranjang
+            // 2. Clear cart
             CartManager.instance.clear();
 
-            // 3. 🔥 FIX UTAMA: Jangan pakai popUntil. 
-            // Kita hapus semua tumpukan layar dan buat Home Screen baru yang segar,
-            // sehingga sistem PASTI membaca perintah memunculkan Pop-up!
+            // 3. Return to HomeScreen fresh so the reward popup can show
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (context) => const HomeScreen()),
