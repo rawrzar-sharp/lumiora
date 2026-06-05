@@ -30,6 +30,7 @@ app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/checkouts', require('./routes/checkoutRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/cms', require('./routes/cmsRoutes'));
 
 app.get('/products', async (req, res, next) => {
   try {

@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import OrdersPage from './pages/Orders';
+import InventoryPage from './pages/Inventory';
+import RecipesPage from './pages/Recipes';
+import ReportsPage from './pages/Reports';
 import { 
   LayoutDashboard, Coffee, ShoppingCart, Users, 
   PieChart, Settings, LogOut, Search, Bell, MoreVertical 
@@ -12,6 +16,7 @@ function App() {
   // --- STATE MANAGEMENT ---
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState(''); // 'admin' atau 'staff'
+  const [apiToken, setApiToken] = useState(null);
   const [activeMenu, setActiveMenu] = useState('Pesanan');
   const [orders, setOrders] = useState([]);
 
@@ -26,10 +31,16 @@ function App() {
       setUserRole('admin');
       setIsLoggedIn(true);
       setActiveMenu('Dashboard');
+      // get a dev token for admin (local test account)
+      fetch(`${API_URL}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'cms.tester@example.com', password: 'CmsPassword1' }) })
+        .then(r => r.json()).then(d => { if (d.success && d.data && d.data.token) setApiToken(d.data.token); }).catch(()=>{});
     } else if (username === 'staff' && password === 'staff123') {
       setUserRole('staff');
       setIsLoggedIn(true);
       setActiveMenu('Pesanan'); // Staff langsung diarahkan ke Pesanan
+      // get a dev token for staff (local test account)
+      fetch(`${API_URL}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'cms.tester2@example.com', password: 'CmsPassword2' }) })
+        .then(r => r.json()).then(d => { if (d.success && d.data && d.data.token) setApiToken(d.data.token); }).catch(()=>{});
     } else {
       alert('Username atau password salah!');
     }
@@ -131,51 +142,11 @@ function App() {
 
         <div className="content-wrapper">
           <h2 style={{ marginBottom: '20px' }}>{activeMenu}</h2>
-          
-          {/* Tampilan Khusus Menu Pesanan */}
-          {activeMenu === 'Pesanan' && (
-            <div className="table-container">
-              <div className="table-header">
-                <h3>Daftar Pesanan (Bisa dikelola Staff)</h3>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID Pesanan</th>
-                    <th>Tipe</th>
-                    <th>Metode Pembayaran</th>
-                    <th>Total</th>
-                    <th>Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.length > 0 ? (
-                    orders.map((order, idx) => (
-                      <tr key={idx}>
-                        <td>{order.id || `ORD-${idx}`}</td>
-                        <td>{order.order_type || 'Dine In'}</td>
-                        <td>{order.payment_method || 'QRIS'}</td>
-                        <td>Rp {order.total_amount || '0'}</td>
-                        <td><button className="action-btn">Proses</button></td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>
-                        Sedang memuat data dari {API_URL} ... (atau data kosong)
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Pesan sementara untuk menu lainnya */}
-          {activeMenu !== 'Pesanan' && (
-             <p>Halaman <b>{activeMenu}</b> sedang dalam tahap pengembangan.</p>
-          )}
-
+          {activeMenu === 'Dashboard' && <div>Dashboard overview coming soon.</div>}
+          {activeMenu === 'Pesanan' && <OrdersPage apiUrl={API_URL} token={apiToken} />}
+          {activeMenu === 'Menu / Cek Stok' && <InventoryPage apiUrl={API_URL} token={apiToken} userRole={userRole} />}
+          {activeMenu === 'Laporan' && <ReportsPage apiUrl={API_URL} token={apiToken} />}
+          {['Manage','Pelanggan','Pengaturan'].includes(activeMenu) && <p>Halaman <b>{activeMenu}</b> sedang dalam tahap pengembangan.</p>}
         </div>
       </main>
     </div>
