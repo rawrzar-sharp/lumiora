@@ -33,7 +33,27 @@
 
     List<String> get _categories {
       final cats = _menu.map((e) => e['category'].toString()).toSet().toList();
-      return ['All', ...cats]; // Keep 'All' as the first option
+      // Prefer a stable ordering that matches lumiora.sql categories
+      final preferred = [
+        'Latte Series',
+        'Classics',
+        'Non-Coffee',
+        'Bundling Duo',
+        'Bundling Trio',
+        'Pastry & Bakery',
+        'Skewers',
+      ];
+
+      final ordered = <String>[];
+      for (var p in preferred) {
+        if (cats.contains(p)) ordered.add(p);
+      }
+      // add any other categories not in preferred
+      for (var c in cats) {
+        if (!ordered.contains(c)) ordered.add(c);
+      }
+
+      return ['All', ...ordered]; // Keep 'All' as the first option
     }
 
     Map<String, List<Map<String, dynamic>>> get _groupedMenu {
@@ -111,6 +131,7 @@
               return {
                 'id': item['id']?.toString() ?? '0',
                 'name': (item['name'] ?? '').toString(),
+                'description': (item['description'] ?? '').toString(),
                 'category': _catName(item['category_id']),
                 'basePrice': double.tryParse((item['base_price'] ?? 0).toString())?.round() ?? 0,
                 'img': _resolveImage(item['name'], item['image_url'], item['category_id']),
@@ -145,37 +166,41 @@
 
     String _catName(dynamic cid) {
       switch (int.tryParse(cid.toString()) ?? 0) {
-        case 1: return 'Brunch';
-        case 2: return 'Pastry';
-        case 3: return 'Coffee';
-        case 4: return 'Non-Coffee';
-        case 5: return 'Trio Deals';
+        case 1: return 'Latte Series';
+        case 2: return 'Classics';
+        case 3: return 'Non-Coffee';
+        case 4: return 'Bundling Duo';
+        case 5: return 'Bundling Trio';
+        case 6: return 'Pastry & Bakery';
+        case 7: return 'Skewers';
         default: return 'Other';
       }
     }
 
-    String _resolveImage(dynamic name, dynamic url, dynamic categoryId) {
-      final n = (name ?? '').toString().toLowerCase();
-
-      if (n.contains('tuna') || n.contains('sando')) return 'assets/images/sando(new_bonus_unlock).png';
-      if (n.contains('croissant') || n.contains('pastry')) return 'assets/images/crossait(new_bonus_unlock).png';
-      if (n.contains('toast') || n.contains('brisket') || n.contains('hash')) return 'assets/images/prod_brunch_deals (3).png'; 
+  String _resolveImage(dynamic name, dynamic url, dynamic categoryId) {
+      final String providedUrl = url?.toString() ?? '';
       
-      if (n.contains('matcha') || n.contains('green')) return 'assets/images/prod_trio_cafe.png';
-      if (n.contains('caramel') || n.contains('macchiato')) return 'assets/images/prod_brunch_deals (2).png';
-      if (n.contains('americano') || n.contains('black') || n.contains('sea salt')) return 'assets/images/prod_coffee_splash.png';
-      if (n.contains('latte') || n.contains('milk')) return 'assets/images/prod_trio_cafe (2).png';
-      if (n.contains('trio') || n.contains('combo')) return 'assets/images/Triplecafe(new_bonus_unlock).png';
+      if (providedUrl.isNotEmpty) {
+        // 1. If the database explicitly provides a local asset path, use it directly!
+        if (providedUrl.startsWith('assets/')) {
+          return providedUrl;
+        }
+        
+        // 2. If it's a full web URL, return it
+        if (providedUrl.startsWith('http')) {
+          return providedUrl;
+        }
 
-      final cat = int.tryParse(categoryId?.toString() ?? '0') ?? 0;
-      switch (cat) {
-        case 1: return 'assets/images/prod_brunch_deals (3).png'; 
-        case 2: return 'assets/images/crossait(new_bonus_unlock).png'; 
-        case 3: return 'assets/images/prod_coffee_splash.png'; 
-        case 4: return 'assets/images/prod_triple_brew.png'; 
-        case 5: return 'assets/images/prod_trio_cafe.png'; 
-        default: return 'assets/images/prod_triple_brew.png'; 
+        // 3. If it's just a raw filename (e.g., "odeng.png"), map it to your local assets
+        if (providedUrl.contains('.')) {
+          final parts = providedUrl.split('/');
+          final baseName = parts.isNotEmpty ? parts.last : providedUrl;
+          return 'assets/images/$baseName';
+        }
       }
+
+      // Final fallback ONLY if the database field is completely empty
+      return 'assets/images/prod_triple_brew.png';
     }
 
     String _formatRp(int amount) =>
@@ -690,15 +715,15 @@
                 child: imagePath.startsWith('assets/')
                     ? Image.asset(
                         imagePath,
-                        width: 80,
-                        height: 80,
+                        width: 64,
+                        height: 64,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
                       )
                     : Image.network(
                         imagePath.startsWith('http') ? imagePath : '$baseUrl$imagePath',
-                        width: 80,
-                        height: 80,
+                        width: 64,
+                        height: 64,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
                       ),
@@ -709,8 +734,13 @@
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(item['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)), 
-                    const SizedBox(height: 4),
-                    Text('Description here...', style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                    const SizedBox(height: 6),
+                    Text(
+                      (item['description'] ?? '').toString(),
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600, height: 1.2),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 8),
                     Text(_formatRp(item['basePrice']), style: TextStyle(fontWeight: FontWeight.w800, color: primaryGreen, fontSize: 13)),
                   ],

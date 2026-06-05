@@ -530,7 +530,7 @@ class HomeScreen extends StatefulWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.35,
+        childAspectRatio: 1.1,
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {
@@ -556,7 +556,7 @@ class HomeScreen extends StatefulWidget {
                     const SizedBox(height: 6),
                     Text(product['title']!, style: TextStyle(fontWeight: FontWeight.w900, color: primaryGreen, fontSize: 16)),
                     const SizedBox(height: 2),
-                    Text(product['desc']!, style: TextStyle(fontSize: 9, color: primaryGreen, height: 1.2)),
+                    Text(product['desc']!, style: TextStyle(fontSize: 9, color: primaryGreen, height: 1.2), maxLines: 2, overflow: TextOverflow.ellipsis),
                     const Spacer(),
                     Text(product['price']!, style: TextStyle(fontWeight: FontWeight.w500, color: textDark, fontSize: 12)),
                   ],

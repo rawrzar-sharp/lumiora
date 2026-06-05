@@ -9,6 +9,7 @@ const app = express();
 // Perbaikan: Cukup panggil CORS sekali
 app.use(cors({ origin: "*" }));
 app.use(express.json());
+app.use('/images', express.static('assets/images'));
 
 // Initialize MySQL Database Connection Pool
 const pool = mysql.createPool({
@@ -164,7 +165,29 @@ app.get('/api/menu', async (req, res) => {
   try {
     const [rows] = await pool.execute('SELECT * FROM menu_items WHERE is_available = 1');
     console.log(`[/api/menu] returned ${rows.length} rows`);
-    res.status(200).json({ success: true, menu: rows });
+    // Normalize image_url so clients can easily resolve to /images/<basename>
+    const normalized = rows.map(r => {
+      try {
+        const img = r.image_url || '';
+        if (typeof img === 'string' && img.length > 0) {
+          if (img.startsWith('http')) {
+            r.image_url = img;
+          } else {
+            // extract basename
+            const parts = img.split('/');
+            const base = parts.length ? parts[parts.length - 1] : img;
+            r.image_url = `/images/${base}`;
+          }
+        } else {
+          r.image_url = '';
+        }
+      } catch (e) {
+        // ignore
+      }
+      return r;
+    });
+
+    res.status(200).json({ success: true, menu: normalized });
   } catch (error) {
     console.error("Menu Fetch Error:", error);
     res.status(500).json({ success: false, error: error.message, code: error.code });

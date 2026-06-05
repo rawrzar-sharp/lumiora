@@ -124,62 +124,76 @@ INSERT INTO `menu_categories` (`id`, `name`, `printer_target`) VALUES
 (4, 'Bundling Duo', 'Beverages'),
 (5, 'Bundling Trio', 'Beverages'),
 (6, 'Pastry & Bakery', 'Pastry'),
-(7, 'Kitchen', 'Kitchen');
+(7, 'Skewers', 'Kitchen');
 
 INSERT INTO `menu_items` (`id`, `category_id`, `name`, `description`, `base_price`, `is_recommended`, `image_url`) VALUES
 -- -----------------------------------------
 -- LATTE SERIES (Category 1)
 -- -----------------------------------------
-(1, 1, 'Latte', 'Classic espresso with creamy steamed milk', 22000.00, 1, 'assets/images/prod_trio_cafe.png'),
-(2, 1, 'Aren Latte', 'Signature latte balanced with authentic palm sugar', 22000.00, 1, 'assets/images/prod_coffee_splash.png'),
-(3, 1, 'Caramel Latte', 'Sweet caramel syrup infused with smooth latte', 25000.00, 0, 'assets/images/prod_triple_brew.png'),
-(4, 1, 'Hazelnut Latte', 'Roasted hazelnut flavors in a rich milk coffee', 25000.00, 0, 'assets/images/prod_trio_cafe.png'),
-(5, 1, 'Vanilla Latte', 'Classic sweet vanilla notes with rich espresso', 25000.00, 0, 'assets/images/prod_coffee_splash.png'),
-(6, 1, 'Butterscotch Latte', 'Rich and buttery caramel notes in espresso', 25000.00, 1, 'assets/images/prod_triple_brew.png'),
-(7, 1, 'Buttercream Aren Latte', 'Creamy butter topping on our signature Aren Latte', 25000.00, 1, 'assets/images/prod_trio_cafe.png'),
-(8, 1, 'Creamy Aren Latte', 'Extra creamy version of the classic Aren Latte', 25000.00, 0, 'assets/images/prod_coffee_splash.png'),
-(9, 1, 'Pandan Latte', 'Local pandan infusion for a fragrant coffee experience', 25000.00, 0, 'assets/images/prod_triple_brew.png'),
-(10, 1, 'Avocado Latte', 'Smooth avocado blended with espresso and milk', 25000.00, 0, 'assets/images/prod_trio_cafe.png'),
-(11, 1, 'Banana Latte', 'Sweet banana notes perfectly paired with coffee', 25000.00, 0, 'assets/images/prod_coffee_splash.png'),
-(12, 1, 'Coconut Latte', 'Tropical coconut flavors in a creamy latte', 25000.00, 0, 'assets/images/prod_triple_brew.png'),
+(1, 1, 'Latte', 'Classic espresso with creamy steamed milk', 22000.00, 1, 'assets/images/latte.png'),
+(2, 1, 'Aren Latte', 'Signature latte balanced with authentic palm sugar', 22000.00, 1, 'assets/images/arenlatte.png'),
+(3, 1, 'Caramel Latte', 'Sweet caramel syrup infused with smooth latte', 25000.00, 0, 'assets/images/caramel.png'),
+(4, 1, 'Hazelnut Latte', 'Roasted hazelnut flavors in a rich milk coffee', 25000.00, 0, 'assets/images/hazelnut.png'),
+(5, 1, 'Vanilla Latte', 'Classic sweet vanilla notes with rich espresso', 25000.00, 0, 'assets/images/vanillalatte.png'),
+(6, 1, 'Butterscotch Latte', 'Rich and buttery caramel notes in espresso', 25000.00, 1, 'assets/images/butterscotch.png'),
+(7, 1, 'Buttercream Aren Latte', 'Creamy butter topping on our signature Aren Latte', 25000.00, 1, 'assets/images/buttercream.png'),
+(8, 1, 'Creamy Aren Latte', 'Extra creamy version of the classic Aren Latte', 25000.00, 0, 'assets/images/creamyaren.png'),
+(9, 1, 'Pandan Latte', 'Local pandan infusion for a fragrant coffee experience', 25000.00, 0, 'assets/images/pandan.png'),
+(10, 1, 'Avocado Latte', 'Smooth avocado blended with espresso and milk', 25000.00, 0, 'assets/images/avocado.png'),
+(11, 1, 'Banana Latte', 'Sweet banana notes perfectly paired with coffee', 25000.00, 0, 'assets/images/banana.png'),
+(12, 1, 'Coconut Latte', 'Tropical coconut flavors in a creamy latte', 25000.00, 0, 'assets/images/coconut.png'),
 
 -- -----------------------------------------
 -- CLASSICS (Category 2)
 -- -----------------------------------------
-(13, 2, 'Espresso', 'A strong and bold single shot of coffee', 15000.00, 0, 'assets/images/prod_coffee_splash.png'),
-(14, 2, 'Americano', 'Classic black coffee, simple and awakening', 17000.00, 1, 'assets/images/prod_triple_brew.png'),
-(15, 2, 'Cappucino', 'Equal parts espresso, steamed milk, and thick foam', 22000.00, 0, 'assets/images/prod_trio_cafe.png'),
-(16, 2, 'Caffe Mocha', 'Chocolate and coffee combined for a sweet kick', 25000.00, 1, 'assets/images/prod_coffee_splash.png'),
+(13, 2, 'Espresso', 'A strong and bold single shot of coffee', 15000.00, 0, 'assets/images/espresso.png'),
+(14, 2, 'Americano', 'Classic black coffee, simple and awakening', 17000.00, 1, 'assets/images/americano.png'),
+(15, 2, 'Cappucino', 'Equal parts espresso, steamed milk, and thick foam', 22000.00, 0, 'assets/images/cappucino.png'),
+(16, 2, 'Caffe Mocha', 'Chocolate and coffee combined for a sweet kick', 25000.00, 1, 'assets/images/prod_brunch_deals.png'),
 
 -- -----------------------------------------
 -- NON-COFFEE (Category 3)
 -- -----------------------------------------
-(17, 3, 'Chocolate', 'Rich, creamy, and decadent iced chocolate', 25000.00, 1, 'assets/images/prod_triple_brew.png'),
-(18, 3, 'Matcha Latte', 'Premium Japanese matcha with creamy milk', 25000.00, 1, 'assets/images/prod_trio_cafe.png'),
+(17, 3, 'Chocolate', 'Rich, creamy, and decadent iced chocolate', 25000.00, 1, 'assets/images/chocolate.png'),
+(18, 3, 'Matcha Latte', 'Premium Japanese matcha with creamy milk', 25000.00, 1, 'assets/images/matcha_latte.png'),
+(19, 3, 'Strawberry Matcha Latte', 'Premium Japanese matcha with creamy milk and strawberry jam', 27000.00, 1, 'assets/images/strawberrymatcha.png'),
 
 -- -----------------------------------------
 -- BUNDLING DUO (Category 4)
 -- -----------------------------------------
-(19, 4, 'Twin Brew', '2 Cups of Americano', 30000.00, 0, 'assets/images/prod_brunch_deals.png'),
-(20, 4, 'Signature Pair', 'Aren Latte + Americano', 35000.00, 1, 'assets/images/prod_brunch_deals.png'),
-(21, 4, 'Nusantara Duo', '2 Cups of Aren Latte', 40000.00, 1, 'assets/images/prod_brunch_deals.png'),
-(22, 4, 'The Classics Duo', '2 Cups of Latte', 40000.00, 0, 'assets/images/prod_brunch_deals.png'),
-(23, 4, 'Double Choc', '2 Cups of Chocolate', 45000.00, 0, 'assets/images/prod_brunch_deals.png'),
+(20, 4, 'Twin Brew', '2 Cups of Americano', 30000.00, 0, 'assets/images/twinbrew.png'),
+(21, 4, 'Signature Pair', 'Aren Latte + Americano', 35000.00, 1, 'assets/images/signaturepair.png'),
+(22, 4, 'Nusantara Duo', '2 Cups of Aren Latte', 40000.00, 1, 'assets/images/nusantara_duo.png'),
+(23, 4, 'The Classics Duo', '2 Cups of Latte', 40000.00, 0, 'assets/images/signaturepair.png'),
+(24, 4, 'Double Choc', '2 Cups of Chocolate', 45000.00, 0, 'assets/images/double_choc.png'),
 
 -- -----------------------------------------
 -- BUNDLING TRIO (Category 5)
 -- -----------------------------------------
-(24, 5, 'Mood Booster', '3 Cups of Americano', 45000.00, 0, 'assets/images/Triplecafe(new_bonus_unlock).png'),
-(25, 5, 'Triple Treat', 'Hazelnut, Vanilla, and Caramel Latte', 60000.00, 1, 'assets/images/Triplecafe(new_bonus_unlock).png'),
-(26, 5, 'Sweetie Sweet', 'Pandan, Avocado, and Coconut Latte', 60000.00, 0, 'assets/images/Triplecafe(new_bonus_unlock).png'),
-(27, 5, 'House Favorites', 'Butterscotch, Matcha, and Chocolate', 60000.00, 1, 'assets/images/Triplecafe(new_bonus_unlock).png'),
+(25, 5, 'Mood Booster', '3 Cups of Americano', 45000.00, 0, 'assets/images/moodbooster.png'),
+(26, 5, 'Triple Treat', 'Hazelnut, Vanilla, and Caramel Latte', 60000.00, 1, 'assets/images/triple_treat.png'),
+(27, 5, 'Sweetie Sweet', 'Pandan, Avocado, and Coconut Latte', 60000.00, 0, 'assets/images/sweetiesweet.png'),
+(28, 5, 'House Favorites', 'Butterscotch, Matcha, and Chocolate', 60000.00, 1, 'assets/images/housefav.png'),
 
 -- -----------------------------------------
--- DUMMY PASTRY & KITCHEN (Categories 6 & 7)
+-- PASTRY & BAKERY (Category 6)
 -- -----------------------------------------
-(28, 6, 'Butter Croissant', 'Classic golden French butter croissant', 18000.00, 0, 'assets/images/crossait(new_bonus_unlock).png'),
-(29, 6, 'Pistachio Raspberry Croissant', 'Flaky croissant with rich pistachio cream', 30000.00, 1, 'assets/images/crossait(new_bonus_unlock).png'),
-(30, 7, 'Spicy Tuna Sando', 'Delicious signature sando with crisp tuna mix', 35000.00, 1, 'assets/images/sando(new_bonus_unlock).png');
+(29, 6, 'Egg Sando', 'Classic Japanese-style egg sandwich', 12000.00, 1, 'assets/images/eggsando.png'),
+(30, 6, 'Ham n Cheese Croissant', 'Savory ham and cheese stuffed croissant', 18000.00, 1, 'assets/images/hamandcheese.png'),
+(31, 6, 'Dark Choco Brownies', 'Rich and fudgy dark chocolate brownies', 15000.00, 1, 'assets/images/brownies.png'),
+(32, 6, 'Chocochips Muffin', 'Soft muffin baked with chocolate chips', 10000.00, 0, 'assets/images/chocomuffin.png'),
+(33, 6, 'Mac n Cheese', 'Creamy baked macaroni and cheese', 12000.00, 1, 'assets/images/macandcheese.png'),
+(34, 6, 'Chocochips Cookies', 'Classic crunchy chocolate chip cookies', 12000.00, 0, 'assets/images/chocochip.png'),
+(35, 6, 'Butter Croissant', 'Flaky and buttery golden croissant', 10000.00, 0, 'assets/images/croissant.png'),
+
+-- -----------------------------------------
+-- SKEWERS (Category 7)
+-- -----------------------------------------
+(36, 7, 'Odeng', 'Korean fish cake skewer', 10000.00, 1, 'assets/images/odeng.png'),
+(37, 7, 'Fish ball', 'Savory fish ball skewer', 10000.00, 0, 'assets/images/fishball.png'),
+(38, 7, 'Cheese Dumpling', 'Dumpling filled with melted cheese', 10000.00, 1, 'assets/images/cheesedumpling.png'),
+(39, 7, 'Chikuwa', 'Japanese tube-shaped fish paste', 8000.00, 0, 'assets/images/chikuwa.png'),
+(40, 7, 'Fish Tofu', 'Soft and bouncy fish tofu', 12000.00, 0, 'assets/images/fishtofu.png');
 
 -- =========================================================================
 -- CUSTOMIZATION OPTIONS DUMMY DATA SEEDING
