@@ -73,7 +73,41 @@ app.use((err, req, res, next) => {
   });
 });
 
+app.get('/check-columns', async (req, res) => {
+  try {
+    // Mengambil daftar kolom dari tabel users
+    const [usersCols] = await req.db.query("SHOW COLUMNS FROM users");
+    // Mengambil daftar kolom dari tabel customers
+    const [customersCols] = await req.db.query("SHOW COLUMNS FROM customers");
+
+    res.json({
+      pesan: "Daftar Kolom di Database",
+      kolom_tabel_users: usersCols.map(col => col.Field),
+      kolom_tabel_customers: customersCols.map(col => col.Field)
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- JALAN TIKUS UNTUK MEMPERBAIKI PASSWORD ADMIN ---
+const bcrypt = require('bcrypt');
+app.get('/fix-admin', async (req, res) => {
+  try {
+    // Mengubah 'admin123' menjadi password yang dienkripsi agar bisa dipakai login
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const sql = `UPDATE users SET password = ? WHERE email = 'diamonddark269@gmail.com'`;
+    
+    await req.db.query(sql, [hashedPassword]);
+    res.send("<h1>SUKSES!</h1><p>Password Admin berhasil dienkripsi di Database. Silakan kembali ke CMS dan coba Login!</p>");
+  } catch (error) {
+    res.send("Gagal: " + error.message);
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`API Docs: http://localhost:${PORT}/api-docs`);
 });
+

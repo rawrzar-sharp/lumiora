@@ -292,3 +292,19 @@ INSERT INTO `report_hourly_orders_daily` (`report_date`, `order_hour`, `total_qu
 ('2026-05-30', 14, 2),  -- 2 PM items
 ('2026-05-31', 10, 3),  -- 10 AM items
 ('2026-05-31', 16, 2);  -- 4 PM items
+
+-- User Data
+-- 1. Membuat tabel users
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'staff') DEFAULT 'staff',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Memasukkan (Insert) data Admin dan Staff
+INSERT INTO users (name, email, password, role) VALUES
+('Super Admin', 'diamonddark269@gmail.com', 'admin123', 'admin'),
+('Staff Cafe', 'staff@lumiora.com', 'staff123', 'staff');

@@ -20,46 +20,57 @@ function App() {
   const [activeMenu, setActiveMenu] = useState('Pesanan');
   const [orders, setOrders] = useState([]);
 
-  // --- FUNGSI LOGIN DUMMY ---
-  const handleLogin = (e) => {
+ // --- FUNGSI LOGIN ASLI (TERHUBUNG KE DATABASE) ---
+  const handleLogin = async (e) => {
     e.preventDefault();
-    const username = e.target.username.value;
+    const email = e.target.username.value; // Name di form masih 'username'
     const password = e.target.password.value;
 
-    // Logika sederhana: jika username 'admin', role admin. Jika 'staff', role staff.
-    if (username === 'admin' && password === 'admin123') {
-      setUserRole('admin');
-      setIsLoggedIn(true);
-      setActiveMenu('Dashboard');
-      // get a dev token for admin (local test account)
-      fetch(`${API_URL}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'cms.tester@example.com', password: 'CmsPassword1' }) })
-        .then(r => r.json()).then(d => { if (d.success && d.data && d.data.token) setApiToken(d.data.token); }).catch(()=>{});
-    } else if (username === 'staff' && password === 'staff123') {
-      setUserRole('staff');
-      setIsLoggedIn(true);
-      setActiveMenu('Pesanan'); // Staff langsung diarahkan ke Pesanan
-      // get a dev token for staff (local test account)
-      fetch(`${API_URL}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'cms.tester2@example.com', password: 'CmsPassword2' }) })
-        .then(r => r.json()).then(d => { if (d.success && d.data && d.data.token) setApiToken(d.data.token); }).catch(()=>{});
-    } else {
-      alert('Username atau password salah!');
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      
+      const data = await response.json();
+
+      if (data.success) {
+        // Simpan token asli dari database
+        setApiToken(data.data.token || data.token);
+        setUserRole(data.data.role || 'admin');
+        setIsLoggedIn(true);
+        setActiveMenu('Pesanan'); // Langsung buka halaman pesanan
+      } else {
+        alert(data.message || 'Email atau password salah di Database!');
+      }
+    } catch (err) {
+      alert('Gagal terhubung ke server Backend!');
     }
   };
-
-  // --- FUNGSI MENGAMBIL DATA DARI API CLOUD ---
+  
+  // --- FUNGSI MENGAMBIL DATA DARI API CLOUD/LOKAL ---
   useEffect(() => {
     if (isLoggedIn && (activeMenu === 'Dashboard' || activeMenu === 'Pesanan')) {
-      // Mengambil data pesanan dari API Cloud kamu
-      fetch(`${API_URL}/api/orders`)
+      // Tambahkan headers Authorization agar Backend mau memberikan data
+      fetch(`${API_URL}/api/orders`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiToken}` // Ini kunci rahasianya!
+        }
+      })
         .then(res => res.json())
         .then(data => {
           if (data.success) {
-            setOrders(data.data); // Asumsi response: { success: true, data: [...] }
+            setOrders(data.data); 
+          } else {
+            console.log("Backend menolak memberikan data:", data.message);
           }
         })
         .catch(err => console.log("Gagal mengambil data, pastikan API menyala:", err));
     }
-  }, [isLoggedIn, activeMenu]);
+  }, [isLoggedIn, activeMenu, apiToken]);
 
   // --- RENDER HALAMAN LOGIN ---
   if (!isLoggedIn) {
