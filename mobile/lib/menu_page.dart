@@ -109,20 +109,30 @@
               Map<String, int> addons = {};
 
               // customization options may be stored as JSON or missing
-              final customRaw = item['customization_options'] ?? item['custom_options'] ?? item['custom'] ?? null;
-              if (customRaw != null) {
-                try {
-                  final parsed = customRaw is String ? json.decode(customRaw) : customRaw;
-                  if (parsed['preferences'] != null) {
-                    prefs = List<String>.from(parsed['preferences']);
-                  }
-                  if (parsed['addons'] != null) {
-                    (parsed['addons'] as Map).forEach((k, v) {
-                      addons[k.toString()] = int.parse(v.toString());
-                    });
-                  }
-                } catch (_) {}
+          final customRaw = item['customization_options'] ?? item['custom_options'] ?? item['custom'];
+
+          if (customRaw != null) {
+            try {
+              // Safely handle both Stringified JSON and native Maps
+              final Map<String, dynamic> parsed = customRaw is String 
+                  ? json.decode(customRaw) 
+                  : Map<String, dynamic>.from(customRaw);
+              
+              if (parsed['preferences'] != null) {
+                // Safely cast array to List of Strings
+                prefs = (parsed['preferences'] as List).map((e) => e.toString()).toList();
               }
+              
+              if (parsed['addons'] != null) {
+                (parsed['addons'] as Map).forEach((k, v) {
+                  // Safely handle integers and doubles disguised as strings
+                  addons[k.toString()] = (v is num) ? v.toInt() : int.tryParse(v.toString()) ?? 0;
+                });
+              }
+            } catch (e) {
+              debugPrint("Failed to parse customizations for ${item['name']}: $e");
+            }
+          }
 
               // Support both 'name' and legacy 'item_name'
               final rawName = item['name'] ?? item['item_name'] ?? '';
