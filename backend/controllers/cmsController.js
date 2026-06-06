@@ -10,7 +10,7 @@ exports.getOrdersLog = async (req, res, next) => {
         `SELECT o.id, o.order_number, o.order_type, o.total_amount, o.order_status, o.created_at,
           c.name AS customer_name
          FROM orders o
-         LEFT JOIN customers c ON o.customer_id = c.id
+         LEFT JOIN customer c ON o.customer_id = c.id
          WHERE (? IS NULL OR o.order_status = ?)
          ORDER BY o.created_at DESC`,
         [req.query.status || null, req.query.status || null]

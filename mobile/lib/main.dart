@@ -13,6 +13,7 @@ class GlobalState {
   static int vouchersCount = 0;
   static bool bannerBonusClaimed = false;
   static int currentCardStamps = 0;
+  static int? customerId; // persisted customer id from backend
 }
 
 
@@ -28,6 +29,7 @@ void main() async {
       GlobalState.userName = data['name'] as String?;
       GlobalState.vouchersCount = (data['vouchers'] is int) ? data['vouchers'] as int : int.tryParse('${data['vouchers']}') ?? 0;
       GlobalState.currentCardStamps = (data['loyalty_stamps'] is int) ? data['loyalty_stamps'] as int : int.tryParse('${data['loyalty_stamps']}') ?? 0;
+        GlobalState.customerId = (data['id'] is int) ? data['id'] as int : int.tryParse('${data['id']}') ?? null;
     }
   } catch (e) {
     // ignore restore errors

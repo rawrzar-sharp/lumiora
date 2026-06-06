@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'cart_manager.dart';
 import 'main.dart';
+import 'app_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 
 class PaymentPage extends StatefulWidget {
@@ -51,6 +53,7 @@ class _PaymentPageState extends State<PaymentPage> {
   File? _imageFile;
   Uint8List? _webImageBytes;
   final ImagePicker _picker = ImagePicker();
+  int? _currentCheckoutId;
 
   @override
   void initState() {
@@ -150,7 +153,115 @@ class _PaymentPageState extends State<PaymentPage> {
   );
 }
 
-  void _processPayment() {
+  Future<void> _persistUserData(Map<String, dynamic> data) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_data', jsonEncode(data));
+    } catch (_) {}
+  }
+
+Future<int?> _ensureCustomer() async {
+    final name = GlobalState.userName ?? 'Guest';
+    final url = Uri.parse('${AppConfig.backendUrl}/api/customers');
+    
+    try {
+      // Added dummy phone in case your backend strictly requires it
+      final payload = jsonEncode({'name': name, 'phone': '080000000000'});
+      final res = await http.post(url, headers: {'Content-Type': 'application/json'}, body: payload).timeout(const Duration(seconds: 5));
+      
+      if (res.statusCode == 201 || res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        
+        // Robust ID extraction covering multiple standard backend response formats
+        var rawId = body['id'] ?? body['insertId'] ?? body['customer_id'];
+        if (rawId == null && body['data'] != null) {
+          rawId = body['data']['id'] ?? body['data']['insertId'];
+        }
+        
+        if (rawId != null) {
+          final id = rawId is int ? rawId : int.tryParse(rawId.toString());
+          if (id != null) {
+            GlobalState.customerId = id;
+            await _persistUserData({'name': name, 'id': id, 'vouchers': GlobalState.vouchersCount, 'loyalty_stamps': GlobalState.currentCardStamps});
+            return id;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Customer API error: $e");
+    }
+
+    // BULLETPROOF FALLBACK: If API fails, use the seeded Test Customer from init.sql
+    debugPrint("Falling back to seeded Guest Customer (ID: 1)");
+    GlobalState.customerId = 1;
+    return 1;
+  }
+
+Future<List<int>> _createOrders(int customerId) async {
+    List<int> createdOrderIds = [];
+
+    for (var item in CartManager.instance.items) {
+      int basePrice = (item['basePrice'] as int?) ?? 0;
+      final Map<String, int> addonOpts = Map<String, int>.from((item['addonOptions'] as Map?) ?? {});
+      final List<String> currentAddons = List<String>.from((item['selectedAddons'] as List?) ?? []);
+
+      int unitCost = basePrice;
+      for (var addon in currentAddons) { unitCost += addonOpts[addon] ?? 0; }
+      int qty = item['quantity'] ?? 1;
+
+      final body = {
+        'customer_id': customerId,
+        'menu_id': int.tryParse(item['id'].toString()) ?? 0,
+        'quantity': qty,
+        'order_number': _orderId, // 
+        'order_type': widget.orderType.toLowerCase() == 'takeout' ? 'takeaway' : 'dine_in',
+        'payment_method': _selectedPaymentMethod == 'Pay at Cashier' ? 'cashier' : 'qris',
+        'total': unitCost * qty,
+        'ice_level': item['selectedSpice'] ?? 'Normal Ice',
+        'sugar_level': 'Normal Sugar'
+      };
+
+      try {
+        final res = await http.post(
+          Uri.parse('${AppConfig.backendUrl}/api/orders'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body)
+        ).timeout(const Duration(seconds: 8));
+
+        if (res.statusCode == 201 || res.statusCode == 200) {
+          final b = jsonDecode(res.body);
+          // Safely extract the ID based on various backend response formats
+          int? newId = b['order_id'] ?? b['id'] ?? (b['data'] != null ? b['data']['insertId'] : null);
+          if (newId != null) createdOrderIds.add(newId);
+        } else {
+          debugPrint("Order rejection from server: ${res.body}");
+        }
+      } catch (e) {
+        debugPrint("Network error creating order: $e");
+      }
+    }
+    return createdOrderIds;
+  }
+
+  Future<int?> _createCheckoutForOrder(int orderId) async {
+    try {
+      final res = await http.post(Uri.parse('${AppConfig.backendUrl}/api/checkouts'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'orders_id': orderId})).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 201) {
+        final b = jsonDecode(res.body);
+        return b['id'] as int?;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<bool> _updateCheckoutStatus(int checkoutId, String status) async {
+    try {
+      final res = await http.put(Uri.parse('${AppConfig.backendUrl}/api/checkouts/$checkoutId'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'payment_status': status})).timeout(const Duration(seconds: 8));
+      return res.statusCode == 200;
+    } catch (_) { return false; }
+  }
+
+  void _processPayment() async {
     // --------------------------------------------------------------------------
     // TASK 7: VALIDASI PAYMENT
     // --------------------------------------------------------------------------
@@ -172,8 +283,59 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
     
-    // Jika lolos validasi, tampilkan sukses
-    _showSuccessDialog();
+    // Jika lolos validasi, lakukan submit ke backend
+    final custId = GlobalState.customerId ?? await _ensureCustomer();
+    if (custId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to register customer. Try again later.'), backgroundColor: Colors.red));
+      return;
+    }
+
+    final createdOrderIds = await _createOrders(custId);
+    if (createdOrderIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to create order. Please check your connection and try again.'), backgroundColor: Colors.red));
+      return;
+    }
+
+    // Use the first order ID to attach the checkout payment status
+    _currentCheckoutId = await _createCheckoutForOrder(createdOrderIds.first);
+
+    // Show confirmation dialog allowing user to finalize or cancel the payment
+    if (_currentCheckoutId != null) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Confirm Payment'),
+          content: Text('Proceed to confirm payment for Order #${_orderId}?'),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                // cancel
+                final ok = await _updateCheckoutStatus(_currentCheckoutId!, 'cancelled');
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Order cancelled' : 'Failed to cancel'), backgroundColor: ok ? Colors.green : Colors.red));
+                if (ok) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomeScreen()), (r) => false);
+              },
+              child: const Text('Cancel Order', style: TextStyle(color: Colors.red)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                final paid = await _updateCheckoutStatus(_currentCheckoutId!, 'paid');
+                if (!paid) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update payment status'), backgroundColor: Colors.red));
+                  return;
+                }
+                // Show success and apply rewards
+                _showSuccessDialog();
+              },
+              child: const Text('Confirm Payment'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to create checkout'), backgroundColor: Colors.red));
+    }
   }
 
   @override

@@ -95,6 +95,7 @@
           const Duration(seconds: 10),
           onTimeout: () => http.Response('{"success":false,"error":"Connection Timeout"}', 408),
         );
+        if (!mounted) return; 
 
         if (res.statusCode == 200) {
           final data = json.decode(res.body);

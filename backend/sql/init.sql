@@ -8,6 +8,13 @@ DROP TABLE IF EXISTS `recipes`;
 DROP TABLE IF EXISTS `menu_items`;
 DROP TABLE IF EXISTS `menu_categories`;
 DROP TABLE IF EXISTS `ingredients`;
+DROP TABLE IF EXISTS `orders`;
+DROP TABLE IF EXISTS `customer`;
+DROP TABLE IF EXISTS `customers`;
+DROP TABLE IF EXISTS `users`;
+
+-- NOTE: If you ever want a complete fresh wipe of everything, uncomment the line below:
+-- DROP TABLE IF EXISTS `menu`, `category`, `users`, `customer`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =========================================================================
@@ -21,6 +28,18 @@ CREATE TABLE `ingredients` (
   `unit` VARCHAR(20) NOT NULL, 
   `low_stock_threshold` DECIMAL(10,2) NOT NULL DEFAULT 10.00,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `customer` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(100) DEFAULT 'Guest',
+  `phone` VARCHAR(50) DEFAULT NULL,
+  `birthday` DATE DEFAULT NULL,
+  `user_id` INT DEFAULT NULL,
+  `loyalty_stamps` INT DEFAULT 0,
+  `vouchers` INT DEFAULT 0,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `modified_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `menu_categories` (
@@ -77,7 +96,6 @@ CREATE TABLE `order_items` (
   FOREIGN KEY (`menu_item_id`) REFERENCES `menu_items`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Reporting Summary Tables (Target Tables for Python Pipeline)
 CREATE TABLE `report_daily_sales` (
   `report_date` DATE PRIMARY KEY,
   `total_sales` DECIMAL(15,2) NOT NULL,
@@ -95,6 +113,35 @@ CREATE TABLE `report_item_sales_daily` (
   FOREIGN KEY (`menu_item_id`) REFERENCES `menu_items`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Ensure `orders` has a `customer_id` column and references the singular `customer` table
+ALTER TABLE `orders` 
+  ADD COLUMN `customer_id` INT AFTER `id`;
+
+ALTER TABLE `orders`
+  ADD CONSTRAINT `fk_orders_customer` FOREIGN KEY (`customer_id`) REFERENCES `customer`(`id`) ON DELETE CASCADE;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- Add compatibility columns expected by legacy controllers
+ALTER TABLE `orders`
+  ADD COLUMN `menu_id` INT NULL AFTER `customer_id`;
+
+ALTER TABLE `orders`
+  ADD COLUMN `quantity` INT NULL AFTER `menu_id`;
+
+ALTER TABLE `orders`
+  ADD COLUMN `ice_level` VARCHAR(20) NULL AFTER `quantity`;
+
+ALTER TABLE `orders`
+  ADD COLUMN `sugar_level` VARCHAR(20) NULL AFTER `ice_level`;
+
+ALTER TABLE `orders`
+  ADD COLUMN `total` DECIMAL(10,2) NULL AFTER `sugar_level`;
+
+ALTER TABLE `orders`
+  ADD COLUMN `modified_at` DATETIME NULL AFTER `created_at`;
+
+  
 CREATE TABLE `report_hourly_orders_daily` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `report_date` DATE NOT NULL,
@@ -103,27 +150,21 @@ CREATE TABLE `report_hourly_orders_daily` (
   UNIQUE KEY `idx_date_hour` (`report_date`, `order_hour`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS `customers` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `contact_info` VARCHAR(50) NOT NULL UNIQUE,
-  `password` VARCHAR(255) NOT NULL,
-  `name` VARCHAR(100) DEFAULT 'Guest',
-  `loyalty_stamps` INT DEFAULT 0,
-  `vouchers` INT DEFAULT 0,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-INSERT INTO `customers` (`contact_info`, `password`, `name`, `loyalty_stamps`, `vouchers`) 
-VALUES ('test@lumiora.com', '$2a$10$XyT5zN7e5N1yQJz8ZJ5a2O1bHq0z8G3b3/9KjG6V8U5e8e8e8e8e8', 'Test Customer', 0, 0);
+-- Seed customer cleanly without duplicate errors
+INSERT INTO `customer` (`phone`, `name`, `loyalty_stamps`, `vouchers`)
+SELECT 'test@lumiora.com', 'Test Customer', 0, 0
+WHERE NOT EXISTS (SELECT 1 FROM `customer` WHERE `phone` = 'test@lumiora.com');
 
--- Create `users` table used by the Express auth controllers (if not present)
+-- Consolidated clear structure for Express Auth compatibility
 CREATE TABLE IF NOT EXISTS `users` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL,
   `email` VARCHAR(100) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
-  `role` VARCHAR(20) NOT NULL DEFAULT 'staff',
+  `role` ENUM('admin', 'staff') DEFAULT 'staff',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 
 -- =========================================================================
 -- 2. CORE SEED DATA (Menu Categories & Menu Items)
@@ -139,9 +180,6 @@ INSERT INTO `menu_categories` (`id`, `name`, `printer_target`) VALUES
 (7, 'Skewers', 'Kitchen');
 
 INSERT INTO `menu_items` (`id`, `category_id`, `name`, `description`, `base_price`, `is_recommended`, `image_url`) VALUES
--- -----------------------------------------
--- LATTE SERIES (Category 1)
--- -----------------------------------------
 (1, 1, 'Latte', 'Classic espresso with creamy steamed milk', 22000.00, 1, 'assets/images/latte.png'),
 (2, 1, 'Aren Latte', 'Signature latte balanced with authentic palm sugar', 22000.00, 1, 'assets/images/arenlatte.png'),
 (3, 1, 'Caramel Latte', 'Sweet caramel syrup infused with smooth latte', 25000.00, 0, 'assets/images/caramel.png'),
@@ -183,13 +221,14 @@ INSERT INTO `menu_items` (`id`, `category_id`, `name`, `description`, `base_pric
 (39, 7, 'Chikuwa', 'Japanese tube-shaped fish paste', 8000.00, 0, 'assets/images/chikuwa.png'),
 (40, 7, 'Fish Tofu', 'Soft and bouncy fish tofu', 12000.00, 0, 'assets/images/fishtofu.png');
 
--- =============================================================================================================
+-- =========================================================================
 
 CREATE TABLE IF NOT EXISTS `category` (
   `id` INT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- FIXED: Embedded the constraint directly into the creation definition
 CREATE TABLE IF NOT EXISTS `menu` (
   `id` INT PRIMARY KEY,
   `category_id` INT NOT NULL,
@@ -198,7 +237,8 @@ CREATE TABLE IF NOT EXISTS `menu` (
   `image_url` VARCHAR(255) NULL,
   `price` DECIMAL(10,2) NOT NULL,
   `stock` INT NOT NULL DEFAULT 50,
-  `is_Available` TINYINT(1) NOT NULL DEFAULT 1
+  `is_Available` TINYINT(1) NOT NULL DEFAULT 1,
+  CONSTRAINT `fk_menu_category_idx` FOREIGN KEY (`category_id`) REFERENCES `category`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Populate legacy `category` from `menu_categories` if empty
@@ -206,48 +246,55 @@ INSERT INTO `category` (`id`, `name`)
 SELECT id, name FROM menu_categories
 WHERE NOT EXISTS (SELECT 1 FROM category);
 
-
-
-
 -- Populate legacy `menu` from `menu_items` if empty
 INSERT INTO `menu` (`id`, `category_id`, `item_name`, `description`, `image_url`, `price`, `stock`, `is_Available`)
 SELECT id, category_id, name, description, image_url, base_price, 50, is_available
 FROM menu_items
 WHERE NOT EXISTS (SELECT 1 FROM menu);
 
--- Add basic foreign key to maintain integrity if desired (optional)
-ALTER TABLE `menu` 
-  ADD CONSTRAINT `fk_menu_category_idx` FOREIGN KEY (`category_id`) REFERENCES `category`(`id`) ON DELETE RESTRICT;
+-- Standalone ALTER TABLE statement completely removed to prevent error 121
+
+-- =========================================================================
+-- Create `checkout` table used by backend to track payment status
+CREATE TABLE IF NOT EXISTS `checkout` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `orders_id` INT NOT NULL,
+  `payment_status` ENUM('pending','paid','cancelled') DEFAULT 'pending',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`orders_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Ensure orders.menu_id references the legacy `menu` table
+ALTER TABLE `orders` ADD CONSTRAINT `fk_orders_menu` FOREIGN KEY (`menu_id`) REFERENCES `menu`(`id`) ON DELETE SET NULL;
+
+-- 3. CUSTOMIZATIONS & RECIPIES
+-- =========================================================================
 
 UPDATE menu_items SET customization_options = JSON_OBJECT(
   'preferences', JSON_ARRAY('Normal Ice', 'Less Ice', 'No Ice', 'Hot'),
   'addons',      JSON_OBJECT('Extra Shot Espresso', 5000, 'Oat Milk Upgrade', 8000, 'Caramel Drizzle', 4000, 'Vanilla Syrup', 4000)
 ) WHERE id BETWEEN 1 AND 18;
 
--- Sweet/Signature Drinks specifically getting Sugar Options
 UPDATE menu_items SET customization_options = JSON_OBJECT(
   'preferences', JSON_ARRAY('Normal Sugar', 'Less Sugar', 'No Sugar'),
   'addons',      JSON_OBJECT('Extra Shot Espresso', 5000, 'Oat Milk Upgrade', 8000)
-) WHERE id IN (2, 7, 8, 17, 18); -- Aren, Buttercream Aren, Chocolate, Matcha
+) WHERE id IN (2, 7, 8, 17, 18); 
 
--- Bundling (Duos and Trios)
 UPDATE menu_items SET customization_options = JSON_OBJECT(
   'preferences', JSON_ARRAY('All Iced', 'All Hot', 'Mixed (Notes required)'),
   'addons',      JSON_OBJECT('Upgrade All to Large', 15000, 'Paper Carrier Bag', 2000)
 ) WHERE id BETWEEN 19 AND 27;
 
--- Pastry & Bakery
 UPDATE menu_items SET customization_options = JSON_OBJECT(
   'preferences', JSON_ARRAY('Warm/Toasted', 'Room Temperature'),
   'addons',      JSON_OBJECT('Extra Butter', 3000, 'Strawberry Jam', 4000)
 ) WHERE id IN (28, 29);
 
--- Kitchen / Savory
 UPDATE menu_items SET customization_options = JSON_OBJECT(
   'preferences', JSON_ARRAY('Mild', 'Medium Spicy', 'Extra Spicy'),
   'addons',      JSON_OBJECT('Extra Cheese', 6000, 'Add Fried Egg', 5000)
 ) WHERE id = 30;
-
 
 INSERT INTO `ingredients` (`id`, `name`, `stock_quantity`, `unit`, `low_stock_threshold`) VALUES
 (1, 'Espresso Beans', 5000.00, 'grams', 500.00),
@@ -259,24 +306,23 @@ INSERT INTO `ingredients` (`id`, `name`, `stock_quantity`, `unit`, `low_stock_th
 (7, 'Matcha Powder', 1000.00, 'grams', 150.00);
 
 INSERT INTO `recipes` (`menu_item_id`, `ingredient_id`, `quantity_required`) VALUES
--- Iced Sea Salt Latte (Item 7) requires Espresso, Milk, and Cream Foam
 (7, 1, 18.00),
 (7, 2, 150.00),
 (7, 3, 50.00),
--- Spicy Tuna Sando (Item 3) requires Tuna Mix and Brioche Bread
 (3, 4, 120.00),
 (3, 5, 2.00),
--- Croissant Crisp (Item 6) requires 1 pre-made dough piece
 (6, 6, 1.00),
--- Matcha Latte (Item 18) requires Matcha Powder and Milk
 (18, 7, 15.00),
 (18, 2, 200.00);
+
+-- =========================================================================
+-- 4. ANALYTICS & DUMMY REPORT DATA
+-- =========================================================================
 
 INSERT INTO `report_daily_sales` (`report_date`, `total_sales`) VALUES
 ('2026-05-30', 96000.00),
 ('2026-05-31', 216000.00);
 
--- Item Sales Summaries
 INSERT INTO `report_item_sales_daily` (`report_date`, `menu_item_id`, `item_name`, `total_quantity_sold`, `total_revenue`) VALUES
 ('2026-05-30', 1, 'Truffle Scramble Egg Toast', 1, 35000.00),
 ('2026-05-30', 7, 'Iced Sea Salt Latte', 1, 28000.00),
@@ -286,25 +332,14 @@ INSERT INTO `report_item_sales_daily` (`report_date`, `menu_item_id`, `item_name
 ('2026-05-31', 14, 'Pistachio Croissant + Drink', 2, 110000.00),
 ('2026-05-31', 7, 'Iced Sea Salt Latte', 2, 56000.00);
 
--- Hourly Load Volume Summaries
 INSERT INTO `report_hourly_orders_daily` (`report_date`, `order_hour`, `total_quantity_ordered`) VALUES
-('2026-05-30', 9, 2),   -- 9 AM items
-('2026-05-30', 14, 2),  -- 2 PM items
-('2026-05-31', 10, 3),  -- 10 AM items
-('2026-05-31', 16, 2);  -- 4 PM items
+('2026-05-30', 9, 2),   
+('2026-05-30', 14, 2),  
+('2026-05-31', 10, 3),  
+('2026-05-31', 16, 2);  
 
--- User Data
--- 1. Membuat tabel users
-CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'staff') DEFAULT 'staff',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 2. Memasukkan (Insert) data Admin dan Staff
-INSERT INTO users (name, email, password, role) VALUES
-('Super Admin', 'diamonddark269@gmail.com', 'admin123', 'admin'),
-('Staff Cafe', 'staff@lumiora.com', 'staff123', 'staff');
+-- Seed seed records smoothly safely 
+INSERT INTO `users` (name, email, password_hash, role) VALUES
+('Super Admin', 'diamonddark269@gmail.com', '$2a$10$XyT5zN7e5N1yQJz8ZJ5a2O1bHq0z8G3b3/9KjG6V8U5e8e8e8e8e8', 'admin'),
+('Staff Cafe', 'staff@lumiora.com', '$2a$10$XyT5zN7e5N1yQJz8ZJ5a2O1bHq0z8G3b3/9KjG6V8U5e8e8e8e8e8', 'staff')
+ON DUPLICATE KEY UPDATE `password_hash`=VALUES(`password_hash`);

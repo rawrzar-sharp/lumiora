@@ -78,7 +78,7 @@ app.get('/check-columns', async (req, res) => {
     // Mengambil daftar kolom dari tabel users
     const [usersCols] = await req.db.query("SHOW COLUMNS FROM users");
     // Mengambil daftar kolom dari tabel customers
-    const [customersCols] = await req.db.query("SHOW COLUMNS FROM customers");
+    const [customersCols] = await req.db.query("SHOW COLUMNS FROM customer");
 
     res.json({
       pesan: "Daftar Kolom di Database",
@@ -106,8 +106,31 @@ app.get('/fix-admin', async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`API Docs: http://localhost:${PORT}/api-docs`);
-});
+async function waitForDatabase(retries = 20, delayMs = 1000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const conn = await pool.getConnection();
+      conn.release();
+      console.log('Database reachable, starting server');
+      return;
+    } catch (err) {
+      console.warn(`DB not ready (attempt ${i + 1}/${retries}): ${err.message}`);
+      await new Promise(res => setTimeout(res, delayMs));
+    }
+  }
+  throw new Error('Database did not become ready in time');
+}
+
+(async () => {
+  try {
+    await waitForDatabase(30, 1000);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`API Docs: http://localhost:${PORT}/api-docs`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err.message);
+    process.exit(1);
+  }
+})();
 

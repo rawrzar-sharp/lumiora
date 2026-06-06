@@ -96,6 +96,59 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
+// GET Customer Order History
+app.get('/api/orders/customer/:customerId', async (req, res) => {
+  const customerId = req.params.customerId;
+
+  try {
+    // 1. Get all orders for this customer
+    const [orders] = await pool.execute(`
+      SELECT id, order_number, order_status, total_amount, created_at 
+      FROM orders 
+      WHERE customer_id = ? 
+      ORDER BY created_at DESC
+    `, [customerId]);
+
+    if (orders.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    // 2. Format the response and fetch items for each order
+    const formattedOrders = [];
+
+    for (let order of orders) {
+      // Get the items inside this specific order
+      const [items] = await pool.execute(`
+        SELECT oi.quantity, mi.name 
+        FROM order_items oi
+        JOIN menu_items mi ON oi.menu_item_id = mi.id
+        WHERE oi.order_id = ?
+      `, [order.id]);
+
+      // Determine if active or completed based on your CMS flow
+      // 'delivered', 'ready', 'cancelled' count as History. 
+      // 'pending', 'preparing' count as Active.
+      let displayStatus = 'Ongoing';
+      if (order.order_status === 'delivered' || order.order_status === 'ready') displayStatus = 'success';
+      if (order.order_status === 'cancelled') displayStatus = 'cancelled';
+
+      formattedOrders.push({
+        id: order.order_number,
+        total: order.total_amount,
+        order_status: displayStatus,
+        created_at: order.created_at, // Send raw timestamp, let Flutter parse it
+        items: items.map(i => `${i.quantity}x ${i.name}`) // e.g., ["2x Latte", "1x Croissant"]
+      });
+    }
+
+    res.status(200).json({ success: true, data: formattedOrders });
+
+  } catch (error) {
+    console.error("History Fetch Error:", error);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+});
+
 // =========================================================================
 // DEMO STEP 2: Feed Pending Orders to the Web CMS Layout
 // =========================================================================
@@ -195,44 +248,45 @@ app.get('/api/menu', async (req, res) => {
 });
 
 // Unified Login / Sign Up Endpoint
-// Unified Login / Sign Up Endpoint
 app.post('/api/auth', async (req, res) => {
     const { name, contactInfo, password } = req.body;
-    // Searching the 'users' table by email instead of contact_info
-    const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
+    
     if (!contactInfo || !password) {
         return res.status(400).json({ success: false, message: "Please provide contact info and password" });
     }
 
-    try {
-    const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
+    // Map contactInfo from Flutter to the email column in the DB
+    const email = contactInfo; 
 
-    if (rows.length > 0) {
-      const user = rows[0];
-      // Validating existing user using bcrypt
-      const match = await bcrypt.compare(password, user.password);
-      if (match) {
-        // Do not return password field
-        const { password: _, ...safeUser } = user;
-        console.log(`[auth] successful login for ${contactInfo}`);
-        res.status(200).json({ success: true, message: "Welcome back to Lumiora!", user: safeUser });
-      } else {
-        console.log(`[auth] failed login (wrong password) for ${contactInfo}`);
-        res.status(401).json({ success: false, message: "Incorrect password for this account." });
-      }
-    } else {
-      // New user validation & creation (hash password)
-      const newName = name && name.trim() !== '' ? name : 'Valued Guest';
-      const hashed = await bcrypt.hash(password, 10);
-      const [result] = await pool.execute(
-        'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)',
-        [newName, email, hashed]
-      );
-      const [newUserRows] = await pool.execute('SELECT id, name, email, role, created_at FROM users WHERE id = ?', [result.insertId]);
-      const newUser = newUserRows[0] || null;
-      console.log(`[auth] created new user id=${result.insertId} email=${email}`);
-      res.status(201).json({ success: true, message: "Welcome to the Lumiora family!", user: newUser });
-    }
+    try {
+        const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
+
+        if (rows.length > 0) {
+            const user = rows[0];
+            // Validating existing user using bcrypt
+            const match = await bcrypt.compare(password, user.password_hash); // Fix: use password_hash
+            if (match) {
+                // Do not return password field
+                const { password_hash: _, ...safeUser } = user;
+                console.log(`[auth] successful login for ${email}`);
+                res.status(200).json({ success: true, message: "Welcome back to Lumiora!", user: safeUser });
+            } else {
+                console.log(`[auth] failed login (wrong password) for ${email}`);
+                res.status(401).json({ success: false, message: "Incorrect password for this account." });
+            }
+        } else {
+            // New user validation & creation (hash password)
+            const newName = name && name.trim() !== '' ? name : 'Valued Guest';
+            const hashed = await bcrypt.hash(password, 10);
+            const [result] = await pool.execute(
+                'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)',
+                [newName, email, hashed]
+            );
+            const [newUserRows] = await pool.execute('SELECT id, name, email, role, created_at FROM users WHERE id = ?', [result.insertId]);
+            const newUser = newUserRows[0] || null;
+            console.log(`[auth] created new user id=${result.insertId} email=${email}`);
+            res.status(201).json({ success: true, message: "Welcome to the Lumiora family!", user: newUser });
+        }
     } catch (error) {
         console.error("Auth Error:", error);
         res.status(500).json({ success: false, error: "Internal Server Error" });

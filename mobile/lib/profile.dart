@@ -84,10 +84,13 @@ class _ProfilePageState extends State<ProfilePage> {
           isLoggedIn = true;
           userData = Map<String, dynamic>.from(data);
           // Sync with Global State across the app
-          final int newStamps = (data['loyalty_stamps'] is int) ? data['loyalty_stamps'] : 0;
+          final int newStamps = (data['loyalty_stamps'] is int) ? data['loyalty_stamps'] : int.tryParse(data['loyalty_stamps']?.toString() ?? '0') ?? 0;
           GlobalState.userName = data['name'] ?? contact;
-          GlobalState.vouchersCount = (data['vouchers'] is int) ? data['vouchers'] : 0;
+          GlobalState.vouchersCount = (data['vouchers'] is int) ? data['vouchers'] : int.tryParse(data['vouchers']?.toString() ?? '0') ?? 0;
           GlobalState.currentCardStamps = newStamps;
+          
+        var rawId = data['id'] ?? data['user_id'] ?? data['customer_id'];
+          GlobalState.customerId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
         });
 
         // Persist user info locally for next app start

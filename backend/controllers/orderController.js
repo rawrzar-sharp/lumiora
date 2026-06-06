@@ -48,26 +48,34 @@ exports.getOrdersByCustomer = async (req, res, next) => {
   }
 };
 
-exports.createOrder = async (req, res, next) => {
+exports.createOrder = async (req, res) => {
   try {
-    const { customer_id, menu_id, quantity, ice_level, sugar_level } = req.body;
-    if (!customer_id || !menu_id || !quantity) {
-      return res.status(400).json({ success: false, message: 'customer_id, menu_id, and quantity are required' });
-    }
-    const [menu] = await req.db.query('SELECT price FROM menu WHERE id = ?', [menu_id]);
-    if (menu.length === 0) {
-      return res.status(404).json({ success: false, message: 'Menu item not found' });
-    }
-    const total = menu[0].price * quantity;
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const [result] = await req.db.query(
-      `INSERT INTO orders (customer_id, menu_id, quantity, ice_level, sugar_level, total, order_status, created_at, modified_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
-      [customer_id, menu_id, quantity, ice_level || 'iced', sugar_level || 'normal', total, now, now]
-    );
-    res.status(201).json({ success: true, message: 'Order created', id: result.insertId, total });
+    const { 
+        customer_id, menu_id, quantity, order_type, 
+        payment_method, total, ice_level, sugar_level, order_number 
+    } = req.body;
+
+    const finalOrderNumber = order_number || `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // 🔥 FIX: Insert into BOTH 'total' and 'total_amount' to satisfy the strict database rules
+    const sql = `
+      INSERT INTO orders 
+      (customer_id, menu_id, quantity, order_type, payment_method, total, total_amount, ice_level, sugar_level, order_number)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    
+    // Notice we pass the 'total' variable twice below (once for total, once for total_amount)
+    const values = [
+        customer_id, menu_id, quantity, order_type, 
+        payment_method, total, total, ice_level, sugar_level, finalOrderNumber
+    ];
+
+    const [result] = await req.db.query(sql, values);
+    
+    res.status(201).json({ success: true, id: result.insertId, order_number: finalOrderNumber });
   } catch (error) {
-    next(error);
+    console.error("Create Order Error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
