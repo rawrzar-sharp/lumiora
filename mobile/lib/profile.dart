@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'main.dart'; 
 import 'menu_page.dart';
+import 'auth/login.dart';
+import 'auth/register.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -34,214 +36,25 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    // Check if user is already logged in globally
-    if (GlobalState.userName != null) {
-      isLoggedIn = true;
-      // keep state minimal; use GlobalState directly in build
-    }
+    _loadUserProfile(); // Otomatis membaca data login saat profil dibuka
   }
 
-  Future<void> _handleAuth(bool isSignUp) async {
-    final name = nameController.text.trim();
-    final contact = contactController.text.trim();
-    final password = passwordController.text.trim();
+  Future<void> _loadUserProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userDataString = prefs.getString('user_data');
 
-    if (contact.isEmpty || password.isEmpty || (isSignUp && name.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all required fields.'), backgroundColor: Colors.redAccent)
-      );
-      return;
-    }
+    if (userDataString != null) {
+      final decodedData = jsonDecode(userDataString);
+      final userObj = decodedData['user'] ?? decodedData; 
 
-    try {
-      // Use backend auth endpoints. When signing up call /register, otherwise /login
-          // Backend expects separate endpoints and `email` field:
-          // POST /api/auth/register -> { name, email, password }
-          // POST /api/auth/login -> { email, password }
-          final String url = isSignUp ? '$_apiBase/api/auth/register' : '$_apiBase/api/auth/login';
-
-          final Map<String, dynamic> payload = isSignUp
-              ? {'name': name, 'email': contact, 'password': password}
-              : {'email': contact, 'password': password};
-
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload),
-      );
-
-      Map<String, dynamic> result = {};
-      try {
-        result = jsonDecode(response.body);
-      } catch (_) {
-        // Non-JSON response (e.g., HTML 404) — treat as failure
-        result = {'success': false, 'message': 'Unexpected server response'};
-      }
-
-      if (response.statusCode >= 200 && result['success'] == true) {
-        final data = result['data'] ?? result['user'] ?? {};
+      if (mounted) {
         setState(() {
           isLoggedIn = true;
-          userData = Map<String, dynamic>.from(data);
-          // Sync with Global State across the app
-          final int newStamps = (data['loyalty_stamps'] is int) ? data['loyalty_stamps'] : int.tryParse(data['loyalty_stamps']?.toString() ?? '0') ?? 0;
-          GlobalState.userName = data['name'] ?? contact;
-          GlobalState.vouchersCount = (data['vouchers'] is int) ? data['vouchers'] : int.tryParse(data['vouchers']?.toString() ?? '0') ?? 0;
-          GlobalState.currentCardStamps = newStamps;
-          
-        var rawId = data['id'] ?? data['user_id'] ?? data['customer_id'];
-          GlobalState.customerId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+          userData = userObj;
+          GlobalState.userName = userObj['name']; 
         });
-
-        // Persist user info locally for next app start
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          final Map<String, dynamic> persist = {
-            'id': data['id'] ?? data['user_id'] ?? null,
-            'name': data['name'] ?? contact,
-            'contactInfo': data['contactInfo'] ?? contact,
-            'vouchers': data['vouchers'] ?? GlobalState.vouchersCount,
-            'loyalty_stamps': GlobalState.currentCardStamps
-          };
-          await prefs.setString('user_data', jsonEncode(persist));
-        } catch (e) {
-          // ignore persist errors
-        }
-
-        Navigator.of(context).pop(); // Close modal
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['message'] ?? 'Success'), backgroundColor: primaryGreen));
-      } else {
-        final msg = result['message'] ?? 'Authentication failed';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to connect to Lumiora servers.')));
     }
-  }
-
-  void _showLuxuryAuthDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
-        bool isSignUp = false;
-        bool isPasswordVisible = false;
-        bool wantsMarketing = false;
-
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.85,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFBF8F1),
-                borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
-              ),
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 32, left: 24, right: 24),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(child: Container(width: 50, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
-                    const SizedBox(height: 24),
-                    
-                    // Luxury Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("LUMIORÀ", style: TextStyle(fontSize: 28, fontFamily: 'serif', color: goldCardColor, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                        IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Tab Switcher
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(30)),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setModalState(() => isSignUp = false),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(color: !isSignUp ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(30), boxShadow: !isSignUp ? [BoxShadow(color: Colors.black12, blurRadius: 4)] : []),
-                                child: Center(child: Text("Sign In", style: TextStyle(fontWeight: FontWeight.bold, color: !isSignUp ? primaryGreen : Colors.grey))),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setModalState(() => isSignUp = true),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(color: isSignUp ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(30), boxShadow: isSignUp ? [BoxShadow(color: Colors.black12, blurRadius: 4)] : []),
-                                child: Center(child: Text("Login", style: TextStyle(fontWeight: FontWeight.bold, color: isSignUp ? primaryGreen : Colors.grey))),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Inputs
-                    if (isSignUp) ...[
-                      _buildAuthField(controller: nameController, label: "Full Name", icon: Icons.person_outline),
-                      const SizedBox(height: 16),
-                    ],
-                    _buildAuthField(controller: contactController, label: "Email or Phone Number", icon: Icons.email_outlined),
-                    const SizedBox(height: 16),
-                    _buildAuthField(
-                      controller: passwordController, 
-                      label: "Password", 
-                      icon: Icons.lock_outline, 
-                      isPassword: true, 
-                      isVisible: isPasswordVisible,
-                      onVisibilityToggle: () => setModalState(() => isPasswordVisible = !isPasswordVisible)
-                    ),
-                    
-                    const SizedBox(height: 24),
-
-                    // Marketing Checkbox
-                    if (isSignUp)
-                      Theme(
-                        data: Theme.of(context).copyWith(unselectedWidgetColor: goldCardColor),
-                        child: CheckboxListTile(
-                          title: const Text("Keep me updated on exclusive offers and tasting events.", style: TextStyle(fontSize: 12, color: Colors.black87)),
-                          value: wantsMarketing, 
-                          activeColor: goldCardColor,
-                          contentPadding: EdgeInsets.zero,
-                          controlAffinity: ListTileControlAffinity.leading,
-                          onChanged: (val) => setModalState(() => wantsMarketing = val!),
-                        ),
-                      ),
-
-                    const SizedBox(height: 24),
-                    
-                    // Submit Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        onPressed: () => _handleAuth(isSignUp),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryGreen, 
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
-                        child: Text(isSignUp ? "BECOME A MEMBER" : "ACCESS ACCOUNT", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-        );
-      },
-    );
   }
 
   Widget _buildAuthField({required TextEditingController controller, required String label, required IconData icon, bool isPassword = false, bool isVisible = false, VoidCallback? onVisibilityToggle}) {
@@ -266,7 +79,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    String displayName = GlobalState.userName ?? userData?['name'] ?? 'Guest';
+    String initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'G';
+   return Scaffold(
       backgroundColor: scaffoldColor,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -274,35 +89,66 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
-              InkWell(
-                onTap: isLoggedIn ? null : _showLuxuryAuthDialog,
-                borderRadius: BorderRadius.circular(12),
+              // 2. GANTI BAGIAN HEADER INI:
+              GestureDetector(
+                onTap: isLoggedIn
+                    ? null // Jika sudah login, tidak melakukan apa-apa saat ditekan
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LoginPage()),
+                        );
+                      },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8.0),
                   child: Row(
                     children: [
-                      Container(
-                        width: 52, height: 52,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, border: Border.all(color: goldCardColor, width: 2)),
-                        child: Center(child: Text(isLoggedIn ? GlobalState.userName?.substring(0,1).toUpperCase() ?? 'L' : 'L', style: const TextStyle(fontSize: 26, fontFamily: 'serif', color: Color(0xFFB59A57), fontWeight: FontWeight.bold))),
+                      // Lingkaran Inisial Nama (Otomatis menyesuaikan huruf pertama user)
+                      CircleAvatar(
+                        radius: 26, // Menyesuaikan ukuran agar mirip dengan desain sebelumnya
+                        backgroundColor: Colors.white,
+                        child: Text(
+                          isLoggedIn ? initial : "L", // L untuk Lumiora jika belum login
+                          style: TextStyle(
+                            color: goldCardColor, // Menggunakan warna emas profil
+                            fontSize: 26, 
+                            fontFamily: 'serif',
+                            fontWeight: FontWeight.bold
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            isLoggedIn ? "WELCOME BACK," : "JOIN LUMIORÀ",
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade600, fontSize: 11, letterSpacing: 1),
-                          ),
-                          Text(
-                            isLoggedIn ? (GlobalState.userName?.toUpperCase() ?? 'GUEST') : "LOGIN / SIGN UP",
-                            style: TextStyle(fontWeight: FontWeight.w900, color: textDark, fontSize: 18),
-                          ),
-                        ],
+                      
+                      // Teks Nama User
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isLoggedIn ? "WELCOME BACK," : "JOIN LUMIORÀ",
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              isLoggedIn ? displayName.toUpperCase() : "LOGIN / SIGN UP",
+                              style: TextStyle(
+                                color: textDark,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const Spacer(),
-                      if (!isLoggedIn) const Icon(Icons.chevron_right, color: Colors.black54),
+                      
+                      // Tampilkan panah (>) hanya jika BELUM login
+                      if (!isLoggedIn)
+                        const Icon(Icons.chevron_right, color: Colors.black54),
                     ],
                   ),
                 ),
@@ -348,7 +194,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPlaceholder(title: "Payment Methods")));
                     }),
                     _buildSettingsTile(Icons.history, "Order History", onTap: () {
-                      // If you already have an Order History page, link it here!
                       Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPlaceholder(title: "Order History")));
                     }),
                     _buildSettingsTile(Icons.notifications_outlined, "Notifications", onTap: () {
@@ -444,9 +289,14 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildGuestCard() {
-    return InkWell(
-      onTap: _showLuxuryAuthDialog,
-      child: Container(
+      return InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+          );
+        },
+        child: Container(
         width: double.infinity,
         decoration: BoxDecoration(
           color: paleGreenCard,

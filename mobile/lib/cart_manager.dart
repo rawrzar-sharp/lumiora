@@ -66,11 +66,19 @@ class CartManager extends ChangeNotifier {
     }
   }
 
-  // Membersihkan keranjang belanja setelah checkout berhasil
+  // --- SOLUSI ERROR COMPILER ---
+  // Menambahkan clearCart() agar sesuai dengan panggilan di payment.dart
+  void clearCart() {
+    _items.clear();
+    notifyListeners();
+  }
+
+  // Tetap mempertahankan clear() agar tidak error jika dipanggil oleh file lama
   void clear() {
     _items.clear();
     notifyListeners();
   }
+  // -----------------------------
 
   // Helper fungsi untuk membandingkan kesamaan addons (List)
   bool _listEq(dynamic a, dynamic b) {
