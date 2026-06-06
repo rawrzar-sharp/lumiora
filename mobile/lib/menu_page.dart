@@ -83,19 +83,7 @@
       super.dispose();
     }
 
-    void _onFooterItemTapped(int index) {
-      if (index == _bottomNavIndex) return;
-
-      if (index == 0) {
-        Navigator.pop(context);
-      } else {
-        setState(() {
-          _bottomNavIndex = index;
-        });
-      }
-    }
-
-    void _onCartChange() => setState(() {});
+      void _onCartChange() => setState(() {});
 
     Future<void> _fetch() async {
       setState(() {
@@ -192,31 +180,68 @@
     }
 
 String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
-  print("DEBUG: Processing item: $name | URL: $image_url");
-  final String providedUrl = image_url?.toString() ?? '';
-      
-      if (providedUrl.isNotEmpty) {
-        // 1. If the database explicitly provides a local asset path, use it directly!
-        if (providedUrl.startsWith('assets/')) {
-          return providedUrl;
-        }
-        
-        // 2. If it's a full web URL, return it
-        if (providedUrl.startsWith('http')) {
-          return providedUrl;
-        }
+  final String providedUrl = image_url?.toString().trim() ?? '';
 
-        // 3. If it's just a raw filename (e.g., "odeng.png"), map it to your local assets
-        if (providedUrl.contains('.')) {
-          final parts = providedUrl.split('/');
-          final baseName = parts.isNotEmpty ? parts.last : providedUrl;
-          return 'assets/images/$baseName';
-        }
-      }
+  final Map<String, String> aliasMap = {
+    'banana.png': 'bananalatte.png',
+    'matcha.png': 'matchalatte.png',
+    'matchalatte.png': 'matchalatte.png',
+    'double_choc.png': 'doublechoco.png',
+    'doublechoc.png': 'doublechoco.png',
+    'triple_treat.png': 'tripletreat.png',
+    'tripletreat.png': 'tripletreat.png',
+    'nusantara_duo.png': 'nusantaraduo.png',
+    'nusantaraduo.png': 'nusantaraduo.png',
+    'caffe_mocha.png': 'caffemacha.png',
+    'caffe mocha.png': 'caffemacha.png',
+    'caffemacha.png': 'caffemacha.png',
+    'house_favorites.png': 'housefav.png',
+    'chocochips_muffin.png': 'chocomuffin.png',
+    'ham_n_cheese_croissant.png': 'hamandcheese.png',
+    'egg_sando.png': 'eggsando.png',
+    'buttercream_aren_latte.png': 'buttercream.png',
+    'creamy_aren_latte.png': 'creamyaren.png',
+    'signature_pair.png': 'signaturepair.png',
+  };
 
-      // Final fallback ONLY if the database field is completely empty
-      return 'assets/images/prod_triple_brew.png';
-    }
+  String normalizeFilename(String value) {
+    final clean = value.replaceAll(RegExp(r'^[\\/]+'), '').replaceAll(RegExp(r'\\+'), '/');
+    final parts = clean.split('/');
+    final baseName = parts.isNotEmpty ? parts.last : clean;
+    return aliasMap[baseName.toLowerCase()] ?? baseName;
+  }
+
+  if (providedUrl.startsWith('http')) {
+    return providedUrl;
+  }
+
+  if (providedUrl.startsWith('assets/')) {
+    final resolved = normalizeFilename(providedUrl);
+    return '$baseUrl/assets/images/$resolved';
+  }
+
+  if (providedUrl.startsWith('/assets/')) {
+    final resolved = normalizeFilename(providedUrl);
+    return '$baseUrl$resolved';
+  }
+
+  if (providedUrl.contains('.')) {
+    final resolved = normalizeFilename(providedUrl);
+    return '$baseUrl/assets/images/$resolved';
+  }
+
+  final slug = name
+      ?.toString()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_|_$'), '');
+
+  if (slug != null && slug.isNotEmpty) {
+    return '$baseUrl/assets/images/$slug.png';
+  }
+
+  return '$baseUrl/assets/images/prod_triple_brew.png';
+}
 
     String _formatRp(int amount) =>
         'Rp ${amount.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]}.")}';
@@ -711,7 +736,14 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
     List<Widget> _buildItemsForCategory(String category) {
       final items = _groupedMenu[category] ?? [];
       return items.map((item) {
-        final String imagePath = item['image_url']?.toString() ?? '';
+        final String imagePath = (item['img'] ?? item['image_url'] ?? '').toString();
+        final bool isRemote = imagePath.startsWith('http');
+        final String resolvedImagePath = isRemote
+            ? imagePath
+            : (imagePath.startsWith('/assets/') || imagePath.startsWith('assets/'))
+                ? '$baseUrl/${imagePath.replaceFirst('assets/', 'assets/')}'
+                : '$baseUrl$imagePath';
+
         return Container(
           margin: const EdgeInsets.only(bottom: 14),
           padding: const EdgeInsets.all(12),
@@ -727,21 +759,13 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: imagePath.startsWith('assets/')
-                    ? Image.asset(
-                        imagePath,
-                        width: 64,
-                        height: 64,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
-                      )
-                    : Image.network(
-                        imagePath.startsWith('http') ? imagePath : '$baseUrl$imagePath',
-                        width: 64,
-                        height: 64,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
-                      ),
+                child: Image.network(
+                  resolvedImagePath,
+                  width: 64,
+                  height: 64,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

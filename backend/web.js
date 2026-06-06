@@ -12,6 +12,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+const path = require('path');
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
+
 app.use((req, res, next) => {
   req.db = pool;
   next();
