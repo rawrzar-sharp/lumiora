@@ -1,11 +1,11 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'menu_page.dart';
-import 'cart.dart'; // Make sure this matches your actual cart file
 import 'profile.dart'; // Make sure this matches your actual profile file
 import 'main.dart'; // To route back to Home
 import 'app_config.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -14,13 +14,13 @@ class HistoryPage extends StatefulWidget {
   State<HistoryPage> createState() => _HistoryPageState();
 }
 
-class _HistoryPageState extends State<HistoryPage> {
+class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
   // --- Colors matching menu_page.dart ---
   final Color primaryGreen = const Color(0xFF7B8C2A);
   final Color textDark = const Color(0xFF2C3028);
   final Color lightGreenCard = const Color(0xFFDCE2B9);
   
-  int _bottomNavIndex = 3; // 3 represents the History tab
+  int _bottomNavIndex = 2; // 2 represents the History tab in the unified footer
   int _selectedTabIndex = 0; // 0 for Active, 1 for Completed
 
   // Runtime-loaded orders
@@ -28,25 +28,30 @@ class _HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _completedOrders = [];
   bool _loading = true;
 
-  // --- Footer Navigation Logic ---
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Refresh history when the user comes back to the app from background.
+    if (state == AppLifecycleState.resumed) {
+      _fetchOrders();
+    }
+  }
+
+  // --- Footer Navigation Logic (matches Home/Menu/Profile order) ---
   void _onBottomNavTapped(int index) {
     if (index == _bottomNavIndex) return;
 
     Widget nextScreen;
     switch (index) {
       case 0:
-        nextScreen = const HomeScreen(); // Ensure this matches your home class
+        nextScreen = const HomeScreen();
         break;
       case 1:
         nextScreen = const MenuPage();
         break;
       case 2:
-        nextScreen = const CartPage(); // Ensure this matches your cart class
-        break;
+        return; // Already on History
       case 3:
-        return; // Already here
-      case 4:
-        nextScreen = const ProfilePage(); // Ensure this matches your profile class
+        nextScreen = const ProfilePage();
         break;
       default:
         return;
@@ -79,31 +84,42 @@ class _HistoryPageState extends State<HistoryPage> {
             fontSize: 22,
           ),
         ),
-        automaticallyImplyLeading: false, // Prevents back button on main tabs
-      ),
-      body: Column(
-        children: [
-          // Custom Tab Bar
-          Row(
-            children: [
-              Expanded(child: _buildTab("Active", 0)),
-              Expanded(child: _buildTab("Completed", 1)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          
-          // Tab Content Area
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: _selectedTabIndex == 0
-                        ? _buildOrderList(_activeOrders, isActive: true)
-                        : _buildOrderList(_completedOrders, isActive: false),
-                  ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            icon: Icon(Icons.refresh, color: primaryGreen),
+            onPressed: _fetchOrders,
           ),
         ],
+        automaticallyImplyLeading: false, // Prevents back button on main tabs
+      ),
+      body: RefreshIndicator(
+        color: primaryGreen,
+        onRefresh: _fetchOrders,
+        child: Column(
+          children: [
+            // Custom Tab Bar
+            Row(
+              children: [
+                Expanded(child: _buildTab("Active", 0)),
+                Expanded(child: _buildTab("Completed", 1)),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Tab Content Area
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: _selectedTabIndex == 0
+                          ? _buildOrderList(_activeOrders, isActive: true)
+                          : _buildOrderList(_completedOrders, isActive: false),
+                    ),
+            ),
+          ],
+        ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
@@ -112,11 +128,26 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fetchOrders();
+    // Poll every 10s so a status flip in CMS is reflected without manual refresh.
+    _refreshTimer = Stream.periodic(const Duration(seconds: 10)).listen((_) {
+      if (mounted) _fetchOrders();
+    });
+  }
+
+  StreamSubscription<dynamic>? _refreshTimer;
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchOrders() async {
-    setState(() { _loading = true; });
+    if (!mounted) return;
+    setState(() { _loading = _activeOrders.isEmpty && _completedOrders.isEmpty; });
     try {
       final customerId = GlobalState.customerId;
       if (customerId == null) {
@@ -141,18 +172,50 @@ class _HistoryPageState extends State<HistoryPage> {
           final created = o['created_at']?.toString() ?? '';
           final date = created.split(' ').first;
           final time = created.split(' ').length > 1 ? created.split(' ')[1] : '';
-          final items = List<String>.from(o['items'] ?? []);
-          final total = o['total'] != null ? 'Rp ${o['total']}' : '';
+          final List rawItems = (o['items'] is List) ? o['items'] as List : [];
+          final items = rawItems.map((it) {
+            if (it is Map) {
+              final label = it['label']
+                  ?? (it['item_name'] != null
+                      ? '${it['quantity']}x ${it['item_name']}'
+                      : it['name']?.toString() ?? '');
+              return label.toString();
+            }
+            return it.toString();
+          }).cast<String>().toList();
+          final total = (o['total_amount'] ?? o['total']) != null
+              ? 'Rp ${(o['total_amount'] ?? o['total']).toString()}'
+              : '';
+          // Map backend ENUM -> friendly user-facing label per the agreed flow:
+          // pending / preparing → Ongoing
+          // ready / delivered   → Done
+          // cancelled           → Cancelled
+          String displayStatus;
+          bool active;
+          if (status == 'delivered' || status == 'ready') {
+            displayStatus = 'Done';
+            active = false;
+          } else if (status == 'cancelled') {
+            displayStatus = 'Cancelled';
+            active = false;
+          } else {
+            displayStatus = 'On Going';
+            active = true;
+          }
           final entry = {
             'id': o['id']?.toString() ?? '',
+            'order_number': o['order_number']?.toString() ?? '',
             'date': date,
             'time': time,
             'items': items,
             'total': total,
-            'status': status == 'success' ? 'Completed' : (status == 'cancelled' ? 'Cancelled' : 'Ongoing')
+            'status': displayStatus,
           };
-          if (status == 'success') nowCompleted.add(entry);
-          else nowActive.add(entry);
+          if (active) {
+            nowActive.add(entry);
+          } else {
+            nowCompleted.add(entry);
+          }
         }
 
         setState(() {
@@ -203,16 +266,24 @@ class _HistoryPageState extends State<HistoryPage> {
   // --- Order List Builder ---
   Widget _buildOrderList(List<Map<String, dynamic>> orders, {required bool isActive}) {
     if (orders.isEmpty) {
-      return Center(
-        child: Text(
-          isActive ? "No active orders right now." : "No completed orders yet.",
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
-        ),
+      return ListView(
+        key: ValueKey<String>('${isActive}_empty'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+          Center(
+            child: Text(
+              isActive ? "No active orders right now." : "No completed orders yet.",
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+            ),
+          ),
+        ],
       );
     }
 
     return ListView.builder(
       key: ValueKey<bool>(isActive), // For AnimatedSwitcher to detect change
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       itemCount: orders.length,
       itemBuilder: (context, index) {
@@ -271,10 +342,12 @@ class _HistoryPageState extends State<HistoryPage> {
             style: TextStyle(color: textDark.withOpacity(0.6), fontSize: 12),
           ),
           Text(
-            "#${order['id']}",
+            (order['order_number'] != null && order['order_number'].toString().isNotEmpty)
+                ? order['order_number'].toString()
+                : "#${order['id']}",
             style: TextStyle(
               color: textDark,
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -341,7 +414,7 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  // --- Bottom Navigation Bar ---
+  // --- Bottom Navigation Bar (unified 4-tab layout matching HomeScreen) ---
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
@@ -366,7 +439,6 @@ class _HistoryPageState extends State<HistoryPage> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu), label: 'Menu'),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), activeIcon: Icon(Icons.shopping_cart), label: 'Cart'),
           BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long), label: 'History'),
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
         ],

@@ -6,6 +6,7 @@ import 'menu_page.dart';
 import 'splash.dart';
 import 'payment.dart';
 import 'profile.dart';
+import 'history.dart';
 
 class GlobalState {
   static String? userName;
@@ -25,11 +26,18 @@ void main() async {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString('user_data');
     if (stored != null && stored.isNotEmpty) {
-      final Map<String, dynamic> data = jsonDecode(stored);
+      final dynamic decoded = jsonDecode(stored);
+      // Tolerate both new shape (flat) and older { data: {...} } / { user: {...} } shapes.
+      final Map<String, dynamic> data = (decoded is Map && decoded['data'] is Map)
+          ? Map<String, dynamic>.from(decoded['data'])
+          : (decoded is Map && decoded['user'] is Map)
+              ? Map<String, dynamic>.from(decoded['user'])
+              : Map<String, dynamic>.from(decoded);
       GlobalState.userName = data['name'] as String?;
       GlobalState.vouchersCount = (data['vouchers'] is int) ? data['vouchers'] as int : int.tryParse('${data['vouchers']}') ?? 0;
       GlobalState.currentCardStamps = (data['loyalty_stamps'] is int) ? data['loyalty_stamps'] as int : int.tryParse('${data['loyalty_stamps']}') ?? 0;
-        GlobalState.customerId = (data['id'] is int) ? data['id'] as int : int.tryParse('${data['id']}') ?? null;
+      // Prefer the dedicated customer_id when present (newer backend); fall back to id.
+      GlobalState.customerId = int.tryParse((data['customer_id'] ?? data['id'] ?? '').toString());
     }
   } catch (e) {
     // ignore restore errors
@@ -230,6 +238,14 @@ class HomeScreen extends StatefulWidget {
       ).then((_) {
         if (mounted) setState(() => _bottomNavIndex = 0);
       });
+    } else if (index == 2) {
+      // History tab — accessible from the home footer per spec.
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const HistoryPage()),
+      ).then((_) {
+        if (mounted) setState(() => _bottomNavIndex = 0);
+      });
     } else if (index == 3) {
       Navigator.push(
         context,
@@ -334,7 +350,7 @@ class HomeScreen extends StatefulWidget {
         Column(
           children: [
             Container(
-              height: 240,
+              height: 260,
               width: double.infinity,
               color: const Color(0xFFFBF8F1),
               child: Image.asset(
@@ -351,24 +367,28 @@ class HomeScreen extends StatefulWidget {
               ),
             ),
             Container(
-              height: 100, 
               width: double.infinity,
               color: primaryGreen,
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                      Text(
-                        'Hello, ${GlobalState.userName?.split(' ')[0] ?? 'Guest'}!',
-                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: 0.5),
-                      ),
-                  const SizedBox(height: 6), 
+                  Text(
+                    'Hello, ${GlobalState.userName?.split(' ')[0] ?? 'Guest'}!',
+                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Earn stamps with every order',
+                    style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w400),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
-                      // Badge Kecil: Membaca dari Total Stamps
-                      // _buildStatBadge(Icons.workspace_premium, GlobalState.totalStamps.toString(), 'Stamps'), 
-                      // const SizedBox(width: 12),
-                      // Badge Voucher: Terhubung langsung ke GlobalState.vouchersCount
+                      // Stamps badge — placed BEFORE vouchers per the spec
+                      _buildStatBadge(Icons.workspace_premium, GlobalState.currentCardStamps.toString(), 'Stamps'),
+                      const SizedBox(width: 10),
+                      // Vouchers badge
                       _buildStatBadge(Icons.confirmation_num, GlobalState.vouchersCount.toString(), 'Vouchers'),
                     ],
                   ),
@@ -377,27 +397,38 @@ class HomeScreen extends StatefulWidget {
             ),
           ],
         ),
+        // Lumiora logo medallion — bigger + uses the real brand asset
         Positioned(
-          right: 16,
-          top: 190,
+          right: 18,
+          top: 192,
           child: HoverBounceWrapper(
             onTap: () {},
             child: Container(
-              width: 100,
-              height: 100,
+              width: 140,
+              height: 140,
               decoration: BoxDecoration(
-                color: const Color(0xFFF4F1E1),
+                color: const Color(0xFFFBF8F1),
                 shape: BoxShape.circle,
-                border: Border.all(color: primaryGreen, width: 4),
+                border: Border.all(color: primaryGreen, width: 5),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 14, offset: const Offset(0, 6)),
+                ],
               ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.spa, color: primaryGreen, size: 28),
-                    const SizedBox(height: 2),
-                    Text('LUMIORA', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400, color: textDark, letterSpacing: 1.2)),
-                  ],
+              padding: const EdgeInsets.all(14),
+              child: Image.asset(
+                'assets/images/logo_lumiora.png',
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.spa, color: primaryGreen, size: 40),
+                      const SizedBox(height: 4),
+                      Text('LUMIORA',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w900, color: textDark, letterSpacing: 1.6)),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -784,58 +815,97 @@ class HomeScreen extends StatefulWidget {
     );
   }
 
-  // HIGH-FIDELITY REDESIGN: Accurate replica matching layout from Screenshot 2026-06-03 214720_3.png
+  // High-fidelity Halal Indonesia certification card (proper white-on-green
+  // contrast — the previous build had white text on a pale green background
+  // which was unreadable).
   Widget _buildHalalFooterCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 24),
       decoration: BoxDecoration(
-        color: const Color(0xFFDCE2B9), 
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [primaryGreen, const Color(0xFF5E6D1F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: primaryGreen.withOpacity(0.25), blurRadius: 16, offset: const Offset(0, 8)),
+        ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          CustomPaint(
-            size: const Size(45, 55),
-            painter: HalalLogoEmblemPainter(),
+          // Mark / emblem
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 3)),
+              ],
+            ),
+            child: Center(
+              child: CustomPaint(
+                size: const Size(40, 50),
+                painter: HalalLogoEmblemPainter(),
+              ),
+            ),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 18),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'HALAL',
-                  style: TextStyle(
-                    fontSize: 26, 
-                    fontWeight: FontWeight.w900, 
-                    color: Colors.white, 
-                    letterSpacing: 1.5,
-                    height: 1.0
-                  ),
-                ),
-                const Text(
-                  'INDONESIA',
-                  style: TextStyle(
-                    fontSize: 18, 
-                    fontWeight: FontWeight.bold, 
-                    color: Colors.white, 
-                    letterSpacing: 0.8,
-                    height: 1.1
-                  ),
-                ),
-                const SizedBox(height: 4),
+              children: const [
                 Text(
-                  'ID241103130106',
+                  'CERTIFIED HALAL',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9), 
-                    fontSize: 11, 
-                    fontWeight: FontWeight.w600, 
-                    letterSpacing: 0.4
+                    fontSize: 11,
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.4,
                   ),
                 ),
+                SizedBox(height: 4),
+                Text(
+                  'Halal Indonesia',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 0.4,
+                    height: 1.1,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'ID241103130106 • BPJPH',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withOpacity(0.25)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.verified, color: Colors.white, size: 14),
+                SizedBox(width: 4),
+                Text('Verified', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
               ],
             ),
           ),

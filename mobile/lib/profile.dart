@@ -45,13 +45,28 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (userDataString != null) {
       final decodedData = jsonDecode(userDataString);
-      final userObj = decodedData['user'] ?? decodedData; 
+      // Login stores the inner `data` payload directly, but tolerate older builds
+      // that wrapped it as { user: {...} } or { data: {...} }.
+      final Map<String, dynamic> userObj =
+          (decodedData is Map && decodedData['data'] is Map)
+              ? Map<String, dynamic>.from(decodedData['data'])
+              : (decodedData is Map && decodedData['user'] is Map)
+                  ? Map<String, dynamic>.from(decodedData['user'])
+                  : Map<String, dynamic>.from(decodedData);
 
       if (mounted) {
         setState(() {
           isLoggedIn = true;
           userData = userObj;
-          GlobalState.userName = userObj['name']; 
+          GlobalState.userName = userObj['name'] as String?;
+          GlobalState.customerId = int.tryParse(
+              (userObj['customer_id'] ?? userObj['id'] ?? '').toString());
+          GlobalState.vouchersCount = int.tryParse(
+                  (userObj['vouchers'] ?? '0').toString()) ??
+              GlobalState.vouchersCount;
+          GlobalState.currentCardStamps = int.tryParse(
+                  (userObj['loyalty_stamps'] ?? '0').toString()) ??
+              GlobalState.currentCardStamps;
         });
       }
     }
@@ -317,50 +332,131 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // Mirrors the visual treatment used in payment.dart: dark-green hero block
+  // with the stamp count + a subtle dotted carrier card showing progress.
   Widget _buildStampsSection() {
+    final stamps = GlobalState.currentCardStamps;
+    final progress = (stamps / 10).clamp(0.0, 1.0);
+    final remaining = 10 - stamps;
+
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: paleGreenCard, 
         borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("LOYALTY STAMPS", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-                Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                child: Text("${GlobalState.currentCardStamps}/10", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold, fontSize: 13)),
-              )
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text("Earn a free signature drink every 10 stamps.", style: TextStyle(fontSize: 12, color: Colors.black54)),
-          const SizedBox(height: 24),
-              GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5, crossAxisSpacing: 12, mainAxisSpacing: 16),
-            itemCount: 10,
-            itemBuilder: (context, index) {
-              bool isStamped = index < GlobalState.currentCardStamps;
-              return Container(
-                decoration: BoxDecoration(
-                  color: isStamped ? primaryGreen : Colors.white,
-                  shape: BoxShape.circle,
-                  border: isStamped ? null : Border.all(color: Colors.grey.shade400, width: 1.5)
-                ),
-                child: isStamped 
-                    ? const Icon(Icons.local_cafe, color: Colors.white, size: 20) 
-                    : Center(child: Text("${index + 1}", style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.bold))),
-              );
-            },
-          ),
+        boxShadow: [
+          BoxShadow(color: primaryGreen.withOpacity(0.18), blurRadius: 18, offset: const Offset(0, 8)),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Hero header — same dark-green band as payment.dart's "Order Summary"
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [primaryGreen, const Color(0xFF5E6D1F)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: const [
+                      Text("LOYALTY CARD", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+                      Text("Lumiora Rewards", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  const Divider(color: Colors.white24, height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Stamps collected", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                          const SizedBox(height: 4),
+                          Text(
+                            "$stamps / 10",
+                            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            remaining > 0
+                                ? "$remaining more for a free signature drink"
+                                : "Free drink unlocked — claim it on your next order!",
+                            style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.18),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withOpacity(0.3)),
+                        ),
+                        child: const Icon(Icons.local_cafe, color: Colors.white, size: 28),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  // Progress bar
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 6,
+                      backgroundColor: Colors.white.withOpacity(0.18),
+                      valueColor: const AlwaysStoppedAnimation(Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Stamp grid on cream paper (carrier-card vibe like payment summary)
+            Container(
+              color: const Color(0xFFFBF8F1),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 5,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 18,
+                ),
+                itemCount: 10,
+                itemBuilder: (context, index) {
+                  final bool isStamped = index < stamps;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeOutBack,
+                    decoration: BoxDecoration(
+                      color: isStamped ? primaryGreen : Colors.white,
+                      shape: BoxShape.circle,
+                      border: isStamped
+                          ? null
+                          : Border.all(color: Colors.grey.shade300, width: 1.5),
+                      boxShadow: isStamped
+                          ? [BoxShadow(color: primaryGreen.withOpacity(0.25), blurRadius: 6, offset: const Offset(0, 3))]
+                          : null,
+                    ),
+                    child: isStamped
+                        ? const Icon(Icons.local_cafe, color: Colors.white, size: 20)
+                        : Center(
+                            child: Text("${index + 1}",
+                                style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.bold))),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

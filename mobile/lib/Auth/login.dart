@@ -43,8 +43,12 @@ class _LoginPageState extends State<LoginPage> {
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = jsonDecode(response.body);
 
-        // 🔥 FIX: Ambil data user, cek apakah dibungkus dalam key 'user' atau langsung
-        final Map<String, dynamic> responseData = responseBody['user'] ?? responseBody;
+        // 🔥 FIX: Backend returns `{ success, message, data: { id, user_id, customer_id, name, ... } }`.
+        // Older builds returned `{ user: {...} }` so fall back gracefully.
+        final Map<String, dynamic> responseData =
+            (responseBody['data'] as Map?)?.cast<String, dynamic>() ??
+                (responseBody['user'] as Map?)?.cast<String, dynamic>() ??
+                responseBody;
 
         // 🔥 FIX KUNCI EMAS: Simpan data secara persisten ke HP User
         final prefs = await SharedPreferences.getInstance();
@@ -53,7 +57,9 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setString('user_data', jsonEncode(responseData));
 
         // 3. Set GlobalState agar langsung aktif di session berjalan saat ini
-        GlobalState.customerId = int.tryParse(responseData['id'].toString());
+        // Prefer the explicit `customer_id` from backend when available; fall back to `id`.
+        GlobalState.customerId = int.tryParse(
+            (responseData['customer_id'] ?? responseData['id']).toString());
         GlobalState.userName = responseData['name'] as String?;
         
         // Pastikan parsing tipe data angkanya aman

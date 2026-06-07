@@ -161,9 +161,13 @@ CREATE TABLE IF NOT EXISTS `users` (
   `name` VARCHAR(100) NOT NULL,
   `email` VARCHAR(100) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
-  `role` ENUM('admin', 'staff') DEFAULT 'staff',
+  `role` ENUM('admin', 'staff', 'customer') DEFAULT 'customer',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Idempotent migration: widen `users.role` ENUM in case the table already exists
+-- from an older schema that lacked the `customer` value.
+ALTER TABLE `users` MODIFY COLUMN `role` ENUM('admin', 'staff', 'customer') DEFAULT 'customer';
 
 
 -- =========================================================================
