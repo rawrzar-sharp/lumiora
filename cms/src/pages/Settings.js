@@ -83,6 +83,23 @@ export default function SettingsPage({ apiUrl, token, userRole }) {
     }
   };
 
+  const updateRole = async (u, nextRole) => {
+    if (u.role === nextRole) return;
+    if (!window.confirm(`Change ${u.name}'s role from ${u.role} → ${nextRole}?`)) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/users/${u.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ role: nextRole }),
+      });
+      const json = await res.json();
+      if (json && json.success) fetchUsers();
+      else setMsg({ tone: 'error', text: json.message || 'Failed to change role' });
+    } catch (e) {
+      setMsg({ tone: 'error', text: 'Could not reach API' });
+    }
+  };
+
   const deleteUser = async (u) => {
     if (!window.confirm(`Remove ${u.name} (${u.email})?`)) return;
     try {
@@ -171,11 +188,21 @@ export default function SettingsPage({ apiUrl, token, userRole }) {
                       <td style={{ padding: '10px 4px', fontWeight: 600, color: palette.ink }}>{u.name}</td>
                       <td style={{ padding: '10px 4px', color: '#666' }}>{u.email}</td>
                       <td style={{ padding: '10px 4px', textTransform: 'capitalize' }}>
-                        <span style={{
-                          padding: '3px 10px', borderRadius: 999, fontWeight: 700, fontSize: 11,
-                          background: u.role === 'admin' ? '#FFF1D5' : '#E7F3D9',
-                          color: u.role === 'admin' ? '#B57E2F' : palette.moss,
-                        }}>{u.role}</span>
+                        <select
+                          data-testid={`user-role-${u.id}`}
+                          value={u.role}
+                          onChange={(e) => updateRole(u, e.target.value)}
+                          style={{
+                            padding: '4px 8px', borderRadius: 999, fontWeight: 700, fontSize: 11,
+                            background: u.role === 'admin' ? '#FFF1D5' : '#E7F3D9',
+                            color: u.role === 'admin' ? '#B57E2F' : palette.moss,
+                            border: `1px solid ${u.role === 'admin' ? '#F0D8A0' : '#CDE3A6'}`,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="admin">admin</option>
+                          <option value="staff">staff</option>
+                        </select>
                       </td>
                       <td style={{ padding: '10px 4px', color: '#666' }}>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                       <td style={{ padding: '10px 4px', textAlign: 'right' }}>

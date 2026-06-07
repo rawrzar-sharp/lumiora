@@ -8,6 +8,7 @@ const palette = {
   parchment: '#EFEAD8',
   amber: '#C28840',
   rust: '#C2452F',
+  teal: '#3B7A5A',
 };
 
 const fmtRp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
@@ -30,7 +31,123 @@ function StatTile({ label, value, accent, sub, testId }) {
   );
 }
 
-export default function DashboardPage({ apiUrl, token }) {
+// ---------------------------------------------------------------------------
+// Status pill — used by the staff order list so the kitchen instantly knows
+// what to do with each order (New = start cooking, Cooking = in progress,
+// Ready = hand to customer, Delivered = done, Cancelled = ignore).
+// ---------------------------------------------------------------------------
+function StatusPill({ status }) {
+  const map = {
+    pending:   { bg: '#FFF1D6', fg: '#8A5A12', label: 'New' },
+    preparing: { bg: '#E4EBC1', fg: '#5E6D1F', label: 'Cooking' },
+    ready:     { bg: '#D6E9DD', fg: '#1F5A3C', label: 'Ready' },
+    delivered: { bg: '#E8E6DE', fg: '#5F5B4E', label: 'Delivered' },
+    cancelled: { bg: '#F5D7D1', fg: '#8C2A1E', label: 'Cancelled' },
+  };
+  const s = map[(status || '').toLowerCase()] || { bg: '#EEE', fg: '#333', label: status || '-' };
+  return (
+    <span style={{
+      background: s.bg, color: s.fg, padding: '4px 10px', borderRadius: 999,
+      fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5,
+    }}>{s.label}</span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Staff-only dashboard. Hides money, surfaces operational signals the kitchen
+// actually needs: how many orders are sitting in each kitchen lane, who's the
+// next order to start, which ingredients are running low, and a contextual
+// "what to do now" hint.
+// ---------------------------------------------------------------------------
+function StaffDashboard({ summary, userName }) {
+  const newCount    = summary.queue_pending   || 0;
+  const cookingCount = summary.queue_preparing || 0;
+  const readyCount  = summary.queue_ready     || 0;
+  const lowStock    = summary.low_stock_count || 0;
+
+  // Pick the most urgent active order (newest pending → preparing → ready).
+  const activeOrders = (summary.recent_orders || [])
+    .filter((o) => ['pending', 'preparing', 'ready'].includes((o.order_status || '').toLowerCase()));
+
+  // Friendly next-action hint at the top of the page.
+  let hint;
+  if (newCount > 0)        hint = { tone: palette.amber, text: `You have ${newCount} new order${newCount === 1 ? '' : 's'} waiting to be started.` };
+  else if (cookingCount > 0) hint = { tone: palette.moss,  text: `${cookingCount} order${cookingCount === 1 ? ' is' : 's are'} being prepared right now.` };
+  else if (readyCount > 0)   hint = { tone: palette.teal,  text: `${readyCount} order${readyCount === 1 ? ' is' : 's are'} ready to hand over.` };
+  else                       hint = { tone: palette.mossDeep, text: 'Kitchen is clear. Great job — nothing in the queue right now.' };
+
+  return (
+    <div data-testid="staff-dashboard" style={{ display: 'grid', gap: 18 }}>
+      {/* Greeting + next-action hint */}
+      <div data-testid="staff-greeting" style={{
+        ...card,
+        borderLeft: `5px solid ${hint.tone}`,
+        background: '#FCFBF6',
+      }}>
+        <div style={{ fontSize: 12, color: '#888', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
+          Hi, {userName || 'Staff'} — Kitchen Today
+        </div>
+        <div data-testid="staff-hint" style={{ fontSize: 18, color: palette.ink, marginTop: 6, fontWeight: 700 }}>
+          {hint.text}
+        </div>
+      </div>
+
+      {/* Kitchen lane tiles — no money, just what's in the queue */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+        <StatTile testId="staff-stat-new"      label="New Orders"  value={newCount}     accent={palette.amber}    sub="Waiting to be started" />
+        <StatTile testId="staff-stat-cooking"  label="Cooking"     value={cookingCount} accent={palette.moss}     sub="Being prepared now" />
+        <StatTile testId="staff-stat-ready"    label="Ready"       value={readyCount}   accent={palette.teal}     sub="Ready to hand over" />
+        <StatTile testId="staff-stat-today"    label="Orders Today" value={summary.orders_today || 0} accent={palette.mossDeep} sub="Closed + still open" />
+        <StatTile testId="staff-stat-lowstock" label="Low Stock"   value={lowStock}     accent={palette.rust}     sub="Ingredients to restock" />
+      </div>
+
+      {/* Live active queue */}
+      <section data-testid="staff-active-queue" style={card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <h3 style={{ margin: 0, color: palette.ink, fontSize: 17 }}>Active Queue</h3>
+          <span style={{ fontSize: 12, color: '#888' }}>{activeOrders.length} order{activeOrders.length === 1 ? '' : 's'} in progress</span>
+        </div>
+        <p style={{ marginTop: 4, fontSize: 12, color: '#888' }}>Tap the Orders tab to update status. List auto-refreshes every 15s.</p>
+        {activeOrders.length === 0 ? (
+          <div style={{ padding: '24px 0', color: '#999', fontSize: 13 }}>Nothing in the queue. ✨</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: '#777', fontSize: 11, textTransform: 'uppercase' }}>
+                <th style={{ padding: '8px 4px' }}>Order</th>
+                <th style={{ padding: '8px 4px' }}>Customer</th>
+                <th style={{ padding: '8px 4px' }}>Type</th>
+                <th style={{ padding: '8px 4px' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeOrders.map((o) => (
+                <tr key={o.id} data-testid={`staff-queue-row-${o.id}`} style={{ borderTop: `1px solid ${palette.parchment}` }}>
+                  <td style={{ padding: '10px 4px', fontWeight: 700, color: palette.ink }}>{o.order_number || `ORD-${o.id}`}</td>
+                  <td style={{ padding: '10px 4px' }}>{o.customer_name || `#${o.customer_id || '-'}`}</td>
+                  <td style={{ padding: '10px 4px', textTransform: 'capitalize' }}>{(o.order_type || '').replace('_', ' ')}</td>
+                  <td style={{ padding: '10px 4px' }}><StatusPill status={o.order_status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* Low stock — same data as admin, but framed as a to-do list */}
+      <section data-testid="staff-low-stock" style={card}>
+        <h3 style={{ margin: 0, color: palette.ink, fontSize: 17 }}>Restock Watchlist</h3>
+        <p style={{ marginTop: 4, fontSize: 12, color: '#888' }}>
+          {lowStock === 0
+            ? 'All ingredients are above their low-stock threshold.'
+            : `${lowStock} ingredient${lowStock === 1 ? '' : 's'} need${lowStock === 1 ? 's' : ''} attention — open the Menu / Stock tab to update counts.`}
+        </p>
+      </section>
+    </div>
+  );
+}
+
+export default function DashboardPage({ apiUrl, token, userRole, userName }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -55,16 +172,24 @@ export default function DashboardPage({ apiUrl, token }) {
     }
   }, [apiUrl, token]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchSummary();
     const t = setInterval(fetchSummary, 15000);
     return () => clearInterval(t);
   }, [fetchSummary]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (loading) return <div data-testid="dashboard-loading" style={card}>Loading dashboard…</div>;
   if (err)     return <div data-testid="dashboard-error" style={{ ...card, color: palette.rust }}>{err}</div>;
   if (!summary) return null;
 
+  // Staff get an operational view (no revenue numbers, kitchen-first layout).
+  if (userRole === 'staff') {
+    return <StaffDashboard summary={summary} userName={userName} />;
+  }
+
+  // Admin keeps the full revenue/insights view it always had.
   return (
     <div data-testid="cms-dashboard-page" style={{ display: 'grid', gap: 18 }}>
       {/* TOP STAT TILES */}
@@ -72,8 +197,8 @@ export default function DashboardPage({ apiUrl, token }) {
         <StatTile testId="stat-revenue-today" label="Revenue Today"    value={fmtRp(summary.revenue_today)}   accent={palette.moss}  sub={`${summary.orders_today} orders today`} />
         <StatTile testId="stat-revenue-total" label="Lifetime Revenue" value={fmtRp(summary.revenue_total)}   accent={palette.mossDeep} sub={`${summary.orders_total} total orders`} />
         <StatTile testId="stat-queue-active"  label="Active In Kitchen" value={`${summary.queue_pending + summary.queue_preparing + summary.queue_ready}`} accent={palette.amber}
-                  sub={`Pending ${summary.queue_pending} · Cooking ${summary.queue_preparing} · Ready ${summary.queue_ready}`} />
-        <StatTile testId="stat-customers"     label="Customers"        value={summary.customers_total}        accent="#3B7A5A" sub="Total registered" />
+                  sub={`New ${summary.queue_pending} · Cooking ${summary.queue_preparing} · Ready ${summary.queue_ready} (orders waiting / being prepared / ready to hand over)`} />
+        <StatTile testId="stat-customers"     label="Customers"        value={summary.customers_total}        accent={palette.teal} sub="Total registered" />
         <StatTile testId="stat-low-stock"     label="Low Stock"        value={summary.low_stock_count}        accent={palette.rust}  sub="ingredients to restock" />
       </div>
 

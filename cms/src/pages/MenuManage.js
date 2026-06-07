@@ -1,15 +1,31 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+// Coherent palette with the rest of the Lumiora CMS.
 const palette = {
+  cream: '#FBF8F1',
   ink: '#1F2117',
   moss: '#7B8C2A',
+  mossDeep: '#5E6D1F',
   parchment: '#EFEAD8',
+  amber: '#C28840',
   rust: '#C2452F',
+};
+
+// pending / preparing / ready / delivered / cancelled — display labels & next/prev
+// Staff can move an order FORWARD through its lifecycle or roll it BACK one
+// step if they hit the wrong button. Cancelled orders are terminal; everything
+// else has a forward path, and every non-pending status has a back path.
+const STATUS_META = {
+  pending:   { label: 'New',        tone: palette.amber, next: 'preparing', nextLabel: 'Start preparing', prev: null,         prevLabel: null },
+  preparing: { label: 'In Kitchen', tone: palette.moss,  next: 'ready',     nextLabel: 'Mark Ready',      prev: 'pending',    prevLabel: 'Back to New' },
+  ready:     { label: 'Ready',      tone: '#3B7A5A',     next: 'delivered', nextLabel: 'Mark as Done',    prev: 'preparing',  prevLabel: 'Back to Cooking' },
+  delivered: { label: 'Done',       tone: '#7280B2',     next: null,        nextLabel: null,              prev: 'ready',      prevLabel: 'Back to Ready' },
+  cancelled: { label: 'Cancelled',  tone: '#9B9B9B',     next: null,        nextLabel: null,              prev: null,         prevLabel: null },
 };
 
 const fmtRp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 
-const card = {
+const cardStyle = {
   background: 'white',
   borderRadius: 14,
   padding: '18px 20px',
@@ -17,164 +33,357 @@ const card = {
   border: `1px solid ${palette.parchment}`,
 };
 
-export default function MenuManagePage({ apiUrl, token, userRole }) {
-  const [menu, setMenu] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
-  const [editing, setEditing] = useState(null); // null | menuItem
+export default function OrdersPage({ apiUrl, token }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [lowStock, setLowStock] = useState([]);
+  const [filter, setFilter] = useState('active'); // active | done | all
+  const [busyId, setBusyId] = useState(null);
 
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  const authHeaders = useMemo(
+    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+    [token]
+  );
 
-  const fetchMenu = useCallback(async () => {
+  const fetchOrders = useCallback(async () => {
+    if (!apiUrl) return;
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/api/menu`, { headers: authHeaders });
+      const res = await fetch(`${apiUrl}/api/orders`, { headers: authHeaders });
       const json = await res.json();
-      if (json && json.success) setMenu(json.data || []);
+      if (json && json.success) setOrders(json.data || []);
     } catch (e) {
-      /* ignore */
+      // swallow — show empty state
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiUrl, token]);
+  }, [apiUrl, authHeaders]);
 
-  useEffect(() => { fetchMenu(); }, [fetchMenu]);
-
-  const filtered = menu.filter((m) => {
-    const q = filter.toLowerCase();
-    if (!q) return true;
-    return (m.item_name || '').toLowerCase().includes(q) || (m.category_name || '').toLowerCase().includes(q);
-  });
-
-  const savePrice = async (item, nextPrice) => {
+  const fetchLowStock = useCallback(async () => {
+    if (!apiUrl) return;
     try {
-      const res = await fetch(`${apiUrl}/api/menu/${item.id}`, {
+      const res = await fetch(`${apiUrl}/api/cms/ingredients/low`, { headers: authHeaders });
+      const json = await res.json();
+      if (json && json.success) setLowStock(json.data || []);
+    } catch (e) {
+      /* ignore */
+    }
+  }, [apiUrl, authHeaders]);
+
+  // Keep latest fetchers in refs so the polling effect doesn't re-create the
+  // interval on every render (and avoids triggering react-hooks/set-state-in-effect).
+  const fetchOrdersRef = useRef(fetchOrders);
+  const fetchLowStockRef = useRef(fetchLowStock);
+  useEffect(() => {
+    fetchOrdersRef.current = fetchOrders;
+    fetchLowStockRef.current = fetchLowStock;
+  }, [fetchOrders, fetchLowStock]);
+
+  useEffect(() => {
+    fetchOrdersRef.current();
+    fetchLowStockRef.current();
+    // Poll every 8s so a freshly-paid order appears without manual refresh.
+    const t = setInterval(() => {
+      fetchOrdersRef.current();
+      fetchLowStockRef.current();
+    }, 8000);
+    return () => clearInterval(t);
+  }, []);
+
+  const advanceStatus = async (order, nextStatus) => {
+    setBusyId(order.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/orders/${order.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ price: Number(nextPrice) }),
+        body: JSON.stringify({ order_status: nextStatus }),
       });
       const json = await res.json();
       if (json && json.success) {
-        setEditing(null);
-        fetchMenu();
+        await fetchOrders();
+        if (Array.isArray(json.low_stock_alerts) && json.low_stock_alerts.length) {
+          setLowStock((prev) => {
+            const next = [...prev];
+            for (const alert of json.low_stock_alerts) {
+              if (!next.find((p) => p.id === alert.ingredient_id)) {
+                next.push({ ...alert, id: alert.ingredient_id });
+              }
+            }
+            return next;
+          });
+        } else {
+          fetchLowStock();
+        }
       } else {
-        alert(json?.message || 'Failed to update');
+        alert(json?.message || 'Failed to update order status');
       }
     } catch (e) {
       alert('Could not reach API');
+    } finally {
+      setBusyId(null);
     }
   };
 
-  const toggleAvailability = async (item) => {
-    try {
-      const next = item.is_available === 0 || item.is_available === false ? 1 : 0;
-      const res = await fetch(`${apiUrl}/api/menu/${item.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ is_available: next }),
-      });
-      const json = await res.json();
-      if (json && json.success) fetchMenu();
-      else alert(json?.message || 'Failed to update');
-    } catch (e) {
-      alert('Could not reach API');
-    }
+  const cancelOrder = async (order) => {
+    if (!window.confirm(`Cancel order ${order.order_number || order.id}?`)) return;
+    await advanceStatus(order, 'cancelled');
   };
+
+  const filtered = useMemo(() => {
+    if (filter === 'all') return orders;
+    if (filter === 'done') return orders.filter((o) => o.order_status === 'delivered' || o.order_status === 'cancelled');
+    return orders.filter((o) => !['delivered', 'cancelled'].includes(o.order_status));
+  }, [orders, filter]);
 
   return (
-    <div data-testid="cms-manage-page">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h3 style={{ margin: 0, color: palette.ink, fontSize: 22 }}>Menu Management</h3>
-          <p style={{ margin: '4px 0 0', color: '#777', fontSize: 13 }}>
-            Direct view of the <code>menu</code> table. Edit prices or toggle availability per item.
-          </p>
+    <div data-testid="cms-orders-page" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 24 }}>
+      {/* MAIN COLUMN */}
+      <section>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <div>
+            <h3 style={{ margin: 0, color: palette.ink, fontWeight: 800, fontSize: 22 }}>Kitchen Orders</h3>
+            <p style={{ margin: '4px 0 0', color: '#6b6b6b', fontSize: 13 }}>
+              Auto-refreshes every 8 seconds. Mark each order through its lifecycle.
+            </p>
+          </div>
+          <div data-testid="orders-filter" style={{ display: 'flex', gap: 6, background: palette.parchment, padding: 4, borderRadius: 999 }}>
+            {[
+              { id: 'active', label: 'Active' },
+              { id: 'done', label: 'Completed' },
+              { id: 'all', label: 'All' },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                data-testid={`filter-${opt.id}-btn`}
+                onClick={() => setFilter(opt.id)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 999,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  background: filter === opt.id ? palette.moss : 'transparent',
+                  color: filter === opt.id ? 'white' : palette.ink,
+                  transition: 'background 0.2s',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <input
-          data-testid="menu-search"
-          type="text"
-          placeholder="Search by name or category…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          style={{ padding: '10px 14px', borderRadius: 10, border: `1px solid ${palette.parchment}`, minWidth: 260, fontSize: 13 }}
-        />
-      </div>
 
-      <div style={card}>
-        {loading ? (
-          <div style={{ color: '#777' }}>Loading menu…</div>
+        {loading && orders.length === 0 ? (
+          <div style={{ ...cardStyle, textAlign: 'center', color: '#6b6b6b' }}>Loading orders…</div>
         ) : filtered.length === 0 ? (
-          <div data-testid="menu-empty" style={{ color: '#777', textAlign: 'center', padding: '24px 0' }}>No menu items match.</div>
+          <div data-testid="orders-empty" style={{ ...cardStyle, textAlign: 'center', color: '#6b6b6b', padding: '40px 20px' }}>
+            No orders in this view yet. New orders show up here as soon as a customer pays.
+          </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ textAlign: 'left', color: '#777', fontSize: 11, textTransform: 'uppercase' }}>
-                <th style={{ padding: '10px 6px' }}>ID</th>
-                <th style={{ padding: '10px 6px' }}>Item</th>
-                <th style={{ padding: '10px 6px' }}>Category</th>
-                <th style={{ padding: '10px 6px', textAlign: 'right' }}>Price</th>
-                <th style={{ padding: '10px 6px' }}>Available</th>
-                {userRole === 'admin' && <th style={{ padding: '10px 6px' }}>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((item) => (
-                <tr key={item.id} data-testid={`menu-row-${item.id}`} style={{ borderTop: `1px solid ${palette.parchment}` }}>
-                  <td style={{ padding: '10px 6px', color: '#999' }}>#{item.id}</td>
-                  <td style={{ padding: '10px 6px', fontWeight: 600, color: palette.ink }}>{item.item_name}</td>
-                  <td style={{ padding: '10px 6px', color: '#666' }}>{item.category_name || '—'}</td>
-                  <td style={{ padding: '10px 6px', textAlign: 'right' }}>
-                    {editing && editing.id === item.id ? (
-                      <input
-                        data-testid={`menu-price-input-${item.id}`}
-                        type="number"
-                        defaultValue={item.price}
-                        autoFocus
-                        onKeyDown={(e) => { if (e.key === 'Enter') savePrice(item, e.currentTarget.value); if (e.key === 'Escape') setEditing(null); }}
-                        onBlur={(e) => savePrice(item, e.currentTarget.value)}
-                        style={{ width: 110, padding: 6, borderRadius: 6, border: `1px solid ${palette.moss}`, textAlign: 'right' }}
-                      />
-                    ) : (
-                      <span
-                        style={{ cursor: userRole === 'admin' ? 'pointer' : 'default', fontWeight: 700 }}
-                        onClick={() => userRole === 'admin' && setEditing(item)}
-                        title={userRole === 'admin' ? 'Click to edit' : ''}
-                      >
-                        {fmtRp(item.price)}
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ padding: '10px 6px' }}>
-                    <span
-                      data-testid={`menu-available-${item.id}`}
+          <div style={{ display: 'grid', gap: 14 }}>
+            {filtered.map((order) => {
+              const meta = STATUS_META[order.order_status] || STATUS_META.pending;
+              const items = Array.isArray(order.items) ? order.items : [];
+              return (
+                <article
+                  key={order.id}
+                  data-testid={`order-card-${order.id}`}
+                  style={{ ...cardStyle }}
+                >
+                  <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#888', letterSpacing: 1, textTransform: 'uppercase' }}>
+                        {order.order_type === 'dine_in' ? 'Dine in' : 'Takeaway'} • #{order.id}
+                      </div>
+                      <h4 style={{ margin: '4px 0 0', color: palette.ink, fontSize: 18 }}>
+                        {order.order_number || `ORD-${order.id}`}
+                      </h4>
+                      <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                        Customer: {order.customer_name || `#${order.customer_id}`}
+                      </div>
+                    </div>
+                    <div
+                      data-testid={`order-status-${order.id}`}
                       style={{
-                        display: 'inline-block', padding: '4px 10px', borderRadius: 999,
-                        background: item.is_available === 0 ? '#FEE' : '#E7F3D9',
-                        color: item.is_available === 0 ? palette.rust : palette.moss,
-                        fontWeight: 700, fontSize: 11,
+                        background: meta.tone,
+                        color: 'white',
+                        padding: '6px 14px',
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        letterSpacing: 0.5,
                       }}
                     >
-                      {item.is_available === 0 ? 'Hidden' : 'Available'}
-                    </span>
-                  </td>
-                  {userRole === 'admin' && (
-                    <td style={{ padding: '10px 6px' }}>
-                      <button
-                        data-testid={`menu-toggle-${item.id}`}
-                        onClick={() => toggleAvailability(item)}
-                        style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${palette.moss}`, background: 'white', color: palette.moss, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}
-                      >
-                        {item.is_available === 0 ? 'Show' : 'Hide'}
-                      </button>
-                    </td>
+                      {meta.label}
+                    </div>
+                  </header>
+
+                  {items.length > 0 && (
+                    <ul style={{ listStyle: 'none', padding: 0, margin: '14px 0 0' }}>
+                      {items.map((it, idx) => {
+                        // The backend stores prefs/addons as JSON strings on
+                        // order_items. mysql2 already parses JSON columns, but
+                        // older rows may still arrive as strings — handle both.
+                        const parseMaybe = (v) => {
+                          if (!v) return null;
+                          if (typeof v === 'string') {
+                            try { return JSON.parse(v); } catch (e) { return null; }
+                          }
+                          return v;
+                        };
+                        const prefs  = parseMaybe(it.preferences_json);
+                        const addons = parseMaybe(it.addons_json);
+                        const hasDetail = (prefs && Object.keys(prefs).length) ||
+                                          (Array.isArray(addons) && addons.length) ||
+                                          it.notes;
+                        return (
+                          <li
+                            key={idx}
+                            data-testid={`order-line-${order.id}-${idx}`}
+                            style={{ padding: '8px 0', borderBottom: '1px dashed #EFE7D2', fontSize: 14 }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>
+                                <strong>{it.quantity}x</strong> {it.item_name || `Item #${it.menu_item_id}`}
+                              </span>
+                              <span style={{ color: '#6b6b6b' }}>{fmtRp(it.price_at_sale)}</span>
+                            </div>
+                            {hasDetail && (
+                              <div style={{ marginTop: 6, paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {prefs && Object.entries(prefs).map(([k, v]) => (
+                                  <div key={k} style={{ fontSize: 12, color: '#555' }}>
+                                    <span style={{ color: '#888' }}>{k}:</span>{' '}
+                                    <span style={{ fontWeight: 600, color: palette.ink }}>{String(v)}</span>
+                                  </div>
+                                ))}
+                                {Array.isArray(addons) && addons.length > 0 && (
+                                  <div style={{ fontSize: 12, color: '#555' }}>
+                                    <span style={{ color: '#888' }}>Add-ons:</span>{' '}
+                                    <span style={{ fontWeight: 600, color: palette.moss }}>{addons.join(', ')}</span>
+                                  </div>
+                                )}
+                                {it.notes && (
+                                  <div style={{ fontSize: 12, color: '#555' }}>
+                                    <span style={{ color: '#888' }}>Note:</span>{' '}
+                                    <em>{it.notes}</em>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+                  <footer style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, gap: 10, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#999' }}>Total</div>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: palette.ink }}>{fmtRp(order.total_amount || order.total)}</div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {meta.prev && (
+                        <button
+                          data-testid={`back-${order.id}-btn`}
+                          disabled={busyId === order.id}
+                          onClick={() => advanceStatus(order, meta.prev)}
+                          title="Roll the order back one step (in case of mis-tap)"
+                          style={{
+                            background: 'white',
+                            color: palette.ink,
+                            border: `1.5px solid ${palette.parchment}`,
+                            padding: '10px 14px',
+                            borderRadius: 10,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            opacity: busyId === order.id ? 0.6 : 1,
+                          }}
+                        >
+                          ← {meta.prevLabel}
+                        </button>
+                      )}
+                      {meta.next && (
+                        <button
+                          data-testid={`advance-${order.id}-btn`}
+                          disabled={busyId === order.id}
+                          onClick={() => advanceStatus(order, meta.next)}
+                          style={{
+                            background: palette.moss,
+                            color: 'white',
+                            border: 'none',
+                            padding: '10px 18px',
+                            borderRadius: 10,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            opacity: busyId === order.id ? 0.6 : 1,
+                          }}
+                        >
+                          {busyId === order.id ? '…' : `${meta.nextLabel} →`}
+                        </button>
+                      )}
+                      {!['delivered', 'cancelled'].includes(order.order_status) && (
+                        <button
+                          data-testid={`cancel-${order.id}-btn`}
+                          disabled={busyId === order.id}
+                          onClick={() => cancelOrder(order)}
+                          style={{
+                            background: 'transparent',
+                            color: palette.rust,
+                            border: `1.5px solid ${palette.rust}`,
+                            padding: '10px 14px',
+                            borderRadius: 10,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
         )}
-      </div>
+      </section>
+
+      {/* SIDEBAR — LOW STOCK ALERTS */}
+      <aside data-testid="low-stock-panel">
+        <div style={{ ...cardStyle, background: lowStock.length ? '#FFF5E5' : 'white', borderColor: lowStock.length ? palette.amber : palette.parchment }}>
+          <h4 style={{ margin: 0, color: palette.ink, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: lowStock.length ? palette.rust : '#9CC471' }} />
+            Low ingredient alerts
+          </h4>
+          <p style={{ fontSize: 12, color: '#6b6b6b', margin: '6px 0 14px' }}>
+            {lowStock.length
+              ? `${lowStock.length} item${lowStock.length > 1 ? 's' : ''} at or below threshold. Re-stock before service resumes.`
+              : 'All ingredients are above their threshold. You\'re good to serve.'}
+          </p>
+          {lowStock.length > 0 && (
+            <ul data-testid="low-stock-list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {lowStock.map((ing) => (
+                <li
+                  key={ing.id}
+                  style={{ padding: '10px 0', borderTop: '1px solid #F2E7CF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 700, color: palette.ink, fontSize: 13 }}>{ing.name}</div>
+                    <div style={{ fontSize: 11, color: '#6b6b6b' }}>
+                      threshold {Number(ing.low_stock_threshold).toLocaleString('id-ID')} {ing.unit || ''}
+                    </div>
+                  </div>
+                  <div style={{ color: palette.rust, fontWeight: 800, fontSize: 14 }}>
+                    {Number(ing.stock_quantity).toLocaleString('id-ID')} {ing.unit || ''}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </aside>
     </div>
   );
 }

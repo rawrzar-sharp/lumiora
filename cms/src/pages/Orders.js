@@ -11,13 +11,16 @@ const palette = {
   rust: '#C2452F',
 };
 
-// pending / preparing / ready / delivered / cancelled — display labels & next step
+// pending / preparing / ready / delivered / cancelled — display labels & next/prev
+// Staff can move an order FORWARD through its lifecycle or roll it BACK one
+// step if they hit the wrong button. Cancelled orders are terminal; everything
+// else has a forward path, and every non-pending status has a back path.
 const STATUS_META = {
-  pending: { label: 'New', tone: palette.amber, next: 'preparing', nextLabel: 'Start preparing' },
-  preparing: { label: 'In Kitchen', tone: palette.moss, next: 'ready', nextLabel: 'Mark Ready' },
-  ready: { label: 'Ready', tone: '#3B7A5A', next: 'delivered', nextLabel: 'Mark as Done' },
-  delivered: { label: 'Done', tone: '#7280B2', next: null, nextLabel: null },
-  cancelled: { label: 'Cancelled', tone: '#9B9B9B', next: null, nextLabel: null },
+  pending:   { label: 'New',        tone: palette.amber, next: 'preparing', nextLabel: 'Start preparing', prev: null,         prevLabel: null },
+  preparing: { label: 'In Kitchen', tone: palette.moss,  next: 'ready',     nextLabel: 'Mark Ready',      prev: 'pending',    prevLabel: 'Back to New' },
+  ready:     { label: 'Ready',      tone: '#3B7A5A',     next: 'delivered', nextLabel: 'Mark as Done',    prev: 'preparing',  prevLabel: 'Back to Cooking' },
+  delivered: { label: 'Done',       tone: '#7280B2',     next: null,        nextLabel: null,              prev: 'ready',      prevLabel: 'Back to Ready' },
+  cancelled: { label: 'Cancelled',  tone: '#9B9B9B',     next: null,        nextLabel: null,              prev: null,         prevLabel: null },
 };
 
 const fmtRp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
@@ -218,17 +221,59 @@ export default function OrdersPage({ apiUrl, token }) {
 
                   {items.length > 0 && (
                     <ul style={{ listStyle: 'none', padding: 0, margin: '14px 0 0' }}>
-                      {items.map((it, idx) => (
-                        <li
-                          key={idx}
-                          style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #EFE7D2', fontSize: 14 }}
-                        >
-                          <span>
-                            <strong>{it.quantity}x</strong> {it.item_name || `Item #${it.menu_item_id}`}
-                          </span>
-                          <span style={{ color: '#6b6b6b' }}>{fmtRp(it.price_at_sale)}</span>
-                        </li>
-                      ))}
+                      {items.map((it, idx) => {
+                        // The backend stores prefs/addons as JSON strings on
+                        // order_items. mysql2 already parses JSON columns, but
+                        // older rows may still arrive as strings — handle both.
+                        const parseMaybe = (v) => {
+                          if (!v) return null;
+                          if (typeof v === 'string') {
+                            try { return JSON.parse(v); } catch (e) { return null; }
+                          }
+                          return v;
+                        };
+                        const prefs  = parseMaybe(it.preferences_json);
+                        const addons = parseMaybe(it.addons_json);
+                        const hasDetail = (prefs && Object.keys(prefs).length) ||
+                                          (Array.isArray(addons) && addons.length) ||
+                                          it.notes;
+                        return (
+                          <li
+                            key={idx}
+                            data-testid={`order-line-${order.id}-${idx}`}
+                            style={{ padding: '8px 0', borderBottom: '1px dashed #EFE7D2', fontSize: 14 }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>
+                                <strong>{it.quantity}x</strong> {it.item_name || `Item #${it.menu_item_id}`}
+                              </span>
+                              <span style={{ color: '#6b6b6b' }}>{fmtRp(it.price_at_sale)}</span>
+                            </div>
+                            {hasDetail && (
+                              <div style={{ marginTop: 6, paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {prefs && Object.entries(prefs).map(([k, v]) => (
+                                  <div key={k} style={{ fontSize: 12, color: '#555' }}>
+                                    <span style={{ color: '#888' }}>{k}:</span>{' '}
+                                    <span style={{ fontWeight: 600, color: palette.ink }}>{String(v)}</span>
+                                  </div>
+                                ))}
+                                {Array.isArray(addons) && addons.length > 0 && (
+                                  <div style={{ fontSize: 12, color: '#555' }}>
+                                    <span style={{ color: '#888' }}>Add-ons:</span>{' '}
+                                    <span style={{ fontWeight: 600, color: palette.moss }}>{addons.join(', ')}</span>
+                                  </div>
+                                )}
+                                {it.notes && (
+                                  <div style={{ fontSize: 12, color: '#555' }}>
+                                    <span style={{ color: '#888' }}>Note:</span>{' '}
+                                    <em>{it.notes}</em>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
 
@@ -238,7 +283,27 @@ export default function OrdersPage({ apiUrl, token }) {
                       <div style={{ fontSize: 20, fontWeight: 900, color: palette.ink }}>{fmtRp(order.total_amount || order.total)}</div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {meta.prev && (
+                        <button
+                          data-testid={`back-${order.id}-btn`}
+                          disabled={busyId === order.id}
+                          onClick={() => advanceStatus(order, meta.prev)}
+                          title="Roll the order back one step (in case of mis-tap)"
+                          style={{
+                            background: 'white',
+                            color: palette.ink,
+                            border: `1.5px solid ${palette.parchment}`,
+                            padding: '10px 14px',
+                            borderRadius: 10,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            opacity: busyId === order.id ? 0.6 : 1,
+                          }}
+                        >
+                          ← {meta.prevLabel}
+                        </button>
+                      )}
                       {meta.next && (
                         <button
                           data-testid={`advance-${order.id}-btn`}
@@ -255,7 +320,7 @@ export default function OrdersPage({ apiUrl, token }) {
                             opacity: busyId === order.id ? 0.6 : 1,
                           }}
                         >
-                          {busyId === order.id ? '…' : meta.nextLabel}
+                          {busyId === order.id ? '…' : `${meta.nextLabel} →`}
                         </button>
                       )}
                       {!['delivered', 'cancelled'].includes(order.order_status) && (

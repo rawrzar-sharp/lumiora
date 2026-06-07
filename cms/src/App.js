@@ -17,7 +17,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
 // Menu items per role — single source of truth, English everywhere.
 const MENU_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard',   icon: LayoutDashboard, roles: ['admin'] },
+  { key: 'dashboard', label: 'Dashboard',   icon: LayoutDashboard, roles: ['admin', 'staff'] },
   { key: 'orders',    label: 'Orders',      icon: ShoppingCart,    roles: ['admin', 'staff'] },
   { key: 'stock',     label: 'Menu / Stock', icon: Coffee,         roles: ['staff', 'admin'] },
   { key: 'manage',    label: 'Menu Manager', icon: ClipboardList,  roles: ['admin'] },
@@ -66,7 +66,7 @@ function App() {
         setUserRole(role);
         setUserName(payload.name || email);
         setIsLoggedIn(true);
-        setActiveMenu(role === 'admin' ? 'dashboard' : 'orders');
+        setActiveMenu('dashboard');
       } else {
         setAuthError(data.message || 'Incorrect email or password.');
       }
@@ -108,7 +108,7 @@ function App() {
           setUserRole(payload.role);
           setUserName(payload.name || name);
           setIsLoggedIn(true);
-          setActiveMenu(payload.role === 'admin' ? 'dashboard' : 'orders');
+          setActiveMenu('dashboard');
         } else {
           setAuthMode('login');
           setAuthError('Account created. Please sign in.');
@@ -263,7 +263,7 @@ function App() {
 
         <div className="content-wrapper">
 
-          {activeMenu === 'dashboard' && <DashboardPage  apiUrl={API_URL} token={apiToken} />}
+          {activeMenu === 'dashboard' && <DashboardPage  apiUrl={API_URL} token={apiToken} userRole={userRole} userName={userName} />}
           {activeMenu === 'orders'    && <OrdersPage     apiUrl={API_URL} token={apiToken} />}
           {activeMenu === 'stock'     && <InventoryPage  apiUrl={API_URL} token={apiToken} userRole={userRole} />}
           {activeMenu === 'manage'    && <MenuManagePage apiUrl={API_URL} token={apiToken} userRole={userRole} />}
