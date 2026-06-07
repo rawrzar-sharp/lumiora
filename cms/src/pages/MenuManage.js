@@ -1,31 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
-// Coherent palette with the rest of the Lumiora CMS.
 const palette = {
-  cream: '#FBF8F1',
   ink: '#1F2117',
   moss: '#7B8C2A',
   mossDeep: '#5E6D1F',
   parchment: '#EFEAD8',
-  amber: '#C28840',
   rust: '#C2452F',
-};
-
-// pending / preparing / ready / delivered / cancelled — display labels & next/prev
-// Staff can move an order FORWARD through its lifecycle or roll it BACK one
-// step if they hit the wrong button. Cancelled orders are terminal; everything
-// else has a forward path, and every non-pending status has a back path.
-const STATUS_META = {
-  pending:   { label: 'New',        tone: palette.amber, next: 'preparing', nextLabel: 'Start preparing', prev: null,         prevLabel: null },
-  preparing: { label: 'In Kitchen', tone: palette.moss,  next: 'ready',     nextLabel: 'Mark Ready',      prev: 'pending',    prevLabel: 'Back to New' },
-  ready:     { label: 'Ready',      tone: '#3B7A5A',     next: 'delivered', nextLabel: 'Mark as Done',    prev: 'preparing',  prevLabel: 'Back to Cooking' },
-  delivered: { label: 'Done',       tone: '#7280B2',     next: null,        nextLabel: null,              prev: 'ready',      prevLabel: 'Back to Ready' },
-  cancelled: { label: 'Cancelled',  tone: '#9B9B9B',     next: null,        nextLabel: null,              prev: null,         prevLabel: null },
 };
 
 const fmtRp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 
-const cardStyle = {
+const card = {
   background: 'white',
   borderRadius: 14,
   padding: '18px 20px',
@@ -33,357 +18,257 @@ const cardStyle = {
   border: `1px solid ${palette.parchment}`,
 };
 
-export default function OrdersPage({ apiUrl, token }) {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [lowStock, setLowStock] = useState([]);
-  const [filter, setFilter] = useState('active'); // active | done | all
-  const [busyId, setBusyId] = useState(null);
+const inputStyle = {
+  width: '100%', padding: '9px 10px', borderRadius: 8,
+  border: `1px solid ${palette.parchment}`, boxSizing: 'border-box', fontSize: 13,
+};
 
-  const authHeaders = useMemo(
-    () => (token ? { Authorization: `Bearer ${token}` } : {}),
-    [token]
+// Modal helper
+function Modal({ title, onClose, children }) {
+  return (
+    <div data-testid="menu-modal" style={{ position: 'fixed', inset: 0, background: 'rgba(31,33,23,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: 14, width: 'min(560px, 92vw)', padding: 24, boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
+          <h3 style={{ margin: 0, color: palette.ink, fontSize: 18 }}>{title}</h3>
+          <button data-testid="menu-modal-close" onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 22, color: '#888' }}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
   );
+}
 
-  const fetchOrders = useCallback(async () => {
-    if (!apiUrl) return;
+export default function MenuManagePage({ apiUrl, token, userRole }) {
+  const [menu, setMenu] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
+  const [modal, setModal] = useState(null); // null | {mode:'create'|'edit', data}
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+  const fetchMenu = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/api/orders`, { headers: authHeaders });
-      const json = await res.json();
-      if (json && json.success) setOrders(json.data || []);
-    } catch (e) {
-      // swallow — show empty state
-    } finally {
-      setLoading(false);
-    }
-  }, [apiUrl, authHeaders]);
+      const [m, c] = await Promise.all([
+        fetch(`${apiUrl}/api/menu`, { headers: authHeaders }).then((r) => r.json()),
+        fetch(`${apiUrl}/api/categories`, { headers: authHeaders }).then((r) => r.json()),
+      ]);
+      if (m && m.success) setMenu(m.data || []);
+      if (c && c.success) setCategories(c.data || []);
+    } catch (e) { /* ignore */ }
+    finally { setLoading(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiUrl, token]);
 
-  const fetchLowStock = useCallback(async () => {
-    if (!apiUrl) return;
+  useEffect(() => { fetchMenu(); }, [fetchMenu]);
+
+  const filtered = menu.filter((m) => {
+    const q = filter.toLowerCase();
+    if (!q) return true;
+    return (m.item_name || '').toLowerCase().includes(q) || (m.category_name || '').toLowerCase().includes(q);
+  });
+
+  const toggleAvailability = async (item) => {
     try {
-      const res = await fetch(`${apiUrl}/api/cms/ingredients/low`, { headers: authHeaders });
-      const json = await res.json();
-      if (json && json.success) setLowStock(json.data || []);
-    } catch (e) {
-      /* ignore */
-    }
-  }, [apiUrl, authHeaders]);
-
-  // Keep latest fetchers in refs so the polling effect doesn't re-create the
-  // interval on every render (and avoids triggering react-hooks/set-state-in-effect).
-  const fetchOrdersRef = useRef(fetchOrders);
-  const fetchLowStockRef = useRef(fetchLowStock);
-  useEffect(() => {
-    fetchOrdersRef.current = fetchOrders;
-    fetchLowStockRef.current = fetchLowStock;
-  }, [fetchOrders, fetchLowStock]);
-
-  useEffect(() => {
-    fetchOrdersRef.current();
-    fetchLowStockRef.current();
-    // Poll every 8s so a freshly-paid order appears without manual refresh.
-    const t = setInterval(() => {
-      fetchOrdersRef.current();
-      fetchLowStockRef.current();
-    }, 8000);
-    return () => clearInterval(t);
-  }, []);
-
-  const advanceStatus = async (order, nextStatus) => {
-    setBusyId(order.id);
-    try {
-      const res = await fetch(`${apiUrl}/api/orders/${order.id}`, {
+      const next = item.is_available === 0 || item.is_available === false ? 1 : 0;
+      const res = await fetch(`${apiUrl}/api/menu/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ order_status: nextStatus }),
+        body: JSON.stringify({ is_available: next }),
+      });
+      const json = await res.json();
+      if (json && json.success) fetchMenu();
+      else alert(json?.message || 'Failed to update');
+    } catch (e) { alert('Could not reach API'); }
+  };
+
+  const deleteItem = async (item) => {
+    if (!window.confirm(`Delete "${item.item_name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/menu/${item.id}`, {
+        method: 'DELETE',
+        headers: authHeaders,
       });
       const json = await res.json();
       if (json && json.success) {
-        await fetchOrders();
-        if (Array.isArray(json.low_stock_alerts) && json.low_stock_alerts.length) {
-          setLowStock((prev) => {
-            const next = [...prev];
-            for (const alert of json.low_stock_alerts) {
-              if (!next.find((p) => p.id === alert.ingredient_id)) {
-                next.push({ ...alert, id: alert.ingredient_id });
-              }
-            }
-            return next;
-          });
-        } else {
-          fetchLowStock();
-        }
+        setMsg(`Deleted "${item.item_name}".`);
+        fetchMenu();
       } else {
-        alert(json?.message || 'Failed to update order status');
+        alert(json?.message || 'Failed to delete');
       }
-    } catch (e) {
+    } catch (e) { alert('Could not reach API'); }
+  };
+
+  const saveItem = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    const f = e.target;
+    const payload = {
+      category_id: Number(f.category_id.value),
+      item_name:   f.item_name.value.trim(),
+      description: f.description.value.trim(),
+      image_url:   f.image_url.value.trim(),
+      price:       Number(f.price.value),
+      stock:       Number(f.stock.value || 0),
+      is_available: Number(f.is_available.value),
+    };
+    try {
+      const isEdit = modal.mode === 'edit';
+      const url = isEdit ? `${apiUrl}/api/menu/${modal.data.id}` : `${apiUrl}/api/menu`;
+      const res = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (json && json.success) {
+        setMsg(isEdit ? `Updated "${payload.item_name}".` : `Created "${payload.item_name}".`);
+        setModal(null);
+        fetchMenu();
+      } else {
+        alert(json?.message || 'Failed to save');
+      }
+    } catch (err) {
       alert('Could not reach API');
     } finally {
-      setBusyId(null);
+      setBusy(false);
     }
   };
 
-  const cancelOrder = async (order) => {
-    if (!window.confirm(`Cancel order ${order.order_number || order.id}?`)) return;
-    await advanceStatus(order, 'cancelled');
-  };
-
-  const filtered = useMemo(() => {
-    if (filter === 'all') return orders;
-    if (filter === 'done') return orders.filter((o) => o.order_status === 'delivered' || o.order_status === 'cancelled');
-    return orders.filter((o) => !['delivered', 'cancelled'].includes(o.order_status));
-  }, [orders, filter]);
-
   return (
-    <div data-testid="cms-orders-page" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 24 }}>
-      {/* MAIN COLUMN */}
-      <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <div>
-            <h3 style={{ margin: 0, color: palette.ink, fontWeight: 800, fontSize: 22 }}>Kitchen Orders</h3>
-            <p style={{ margin: '4px 0 0', color: '#6b6b6b', fontSize: 13 }}>
-              Auto-refreshes every 8 seconds. Mark each order through its lifecycle.
-            </p>
-          </div>
-          <div data-testid="orders-filter" style={{ display: 'flex', gap: 6, background: palette.parchment, padding: 4, borderRadius: 999 }}>
-            {[
-              { id: 'active', label: 'Active' },
-              { id: 'done', label: 'Completed' },
-              { id: 'all', label: 'All' },
-            ].map((opt) => (
-              <button
-                key={opt.id}
-                data-testid={`filter-${opt.id}-btn`}
-                onClick={() => setFilter(opt.id)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 999,
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  background: filter === opt.id ? palette.moss : 'transparent',
-                  color: filter === opt.id ? 'white' : palette.ink,
-                  transition: 'background 0.2s',
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {loading && orders.length === 0 ? (
-          <div style={{ ...cardStyle, textAlign: 'center', color: '#6b6b6b' }}>Loading orders…</div>
-        ) : filtered.length === 0 ? (
-          <div data-testid="orders-empty" style={{ ...cardStyle, textAlign: 'center', color: '#6b6b6b', padding: '40px 20px' }}>
-            No orders in this view yet. New orders show up here as soon as a customer pays.
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gap: 14 }}>
-            {filtered.map((order) => {
-              const meta = STATUS_META[order.order_status] || STATUS_META.pending;
-              const items = Array.isArray(order.items) ? order.items : [];
-              return (
-                <article
-                  key={order.id}
-                  data-testid={`order-card-${order.id}`}
-                  style={{ ...cardStyle }}
-                >
-                  <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#888', letterSpacing: 1, textTransform: 'uppercase' }}>
-                        {order.order_type === 'dine_in' ? 'Dine in' : 'Takeaway'} • #{order.id}
-                      </div>
-                      <h4 style={{ margin: '4px 0 0', color: palette.ink, fontSize: 18 }}>
-                        {order.order_number || `ORD-${order.id}`}
-                      </h4>
-                      <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                        Customer: {order.customer_name || `#${order.customer_id}`}
-                      </div>
-                    </div>
-                    <div
-                      data-testid={`order-status-${order.id}`}
-                      style={{
-                        background: meta.tone,
-                        color: 'white',
-                        padding: '6px 14px',
-                        borderRadius: 999,
-                        fontSize: 12,
-                        fontWeight: 800,
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      {meta.label}
-                    </div>
-                  </header>
-
-                  {items.length > 0 && (
-                    <ul style={{ listStyle: 'none', padding: 0, margin: '14px 0 0' }}>
-                      {items.map((it, idx) => {
-                        // The backend stores prefs/addons as JSON strings on
-                        // order_items. mysql2 already parses JSON columns, but
-                        // older rows may still arrive as strings — handle both.
-                        const parseMaybe = (v) => {
-                          if (!v) return null;
-                          if (typeof v === 'string') {
-                            try { return JSON.parse(v); } catch (e) { return null; }
-                          }
-                          return v;
-                        };
-                        const prefs  = parseMaybe(it.preferences_json);
-                        const addons = parseMaybe(it.addons_json);
-                        const hasDetail = (prefs && Object.keys(prefs).length) ||
-                                          (Array.isArray(addons) && addons.length) ||
-                                          it.notes;
-                        return (
-                          <li
-                            key={idx}
-                            data-testid={`order-line-${order.id}-${idx}`}
-                            style={{ padding: '8px 0', borderBottom: '1px dashed #EFE7D2', fontSize: 14 }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span>
-                                <strong>{it.quantity}x</strong> {it.item_name || `Item #${it.menu_item_id}`}
-                              </span>
-                              <span style={{ color: '#6b6b6b' }}>{fmtRp(it.price_at_sale)}</span>
-                            </div>
-                            {hasDetail && (
-                              <div style={{ marginTop: 6, paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {prefs && Object.entries(prefs).map(([k, v]) => (
-                                  <div key={k} style={{ fontSize: 12, color: '#555' }}>
-                                    <span style={{ color: '#888' }}>{k}:</span>{' '}
-                                    <span style={{ fontWeight: 600, color: palette.ink }}>{String(v)}</span>
-                                  </div>
-                                ))}
-                                {Array.isArray(addons) && addons.length > 0 && (
-                                  <div style={{ fontSize: 12, color: '#555' }}>
-                                    <span style={{ color: '#888' }}>Add-ons:</span>{' '}
-                                    <span style={{ fontWeight: 600, color: palette.moss }}>{addons.join(', ')}</span>
-                                  </div>
-                                )}
-                                {it.notes && (
-                                  <div style={{ fontSize: 12, color: '#555' }}>
-                                    <span style={{ color: '#888' }}>Note:</span>{' '}
-                                    <em>{it.notes}</em>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-
-                  <footer style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, gap: 10, flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#999' }}>Total</div>
-                      <div style={{ fontSize: 20, fontWeight: 900, color: palette.ink }}>{fmtRp(order.total_amount || order.total)}</div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {meta.prev && (
-                        <button
-                          data-testid={`back-${order.id}-btn`}
-                          disabled={busyId === order.id}
-                          onClick={() => advanceStatus(order, meta.prev)}
-                          title="Roll the order back one step (in case of mis-tap)"
-                          style={{
-                            background: 'white',
-                            color: palette.ink,
-                            border: `1.5px solid ${palette.parchment}`,
-                            padding: '10px 14px',
-                            borderRadius: 10,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            opacity: busyId === order.id ? 0.6 : 1,
-                          }}
-                        >
-                          ← {meta.prevLabel}
-                        </button>
-                      )}
-                      {meta.next && (
-                        <button
-                          data-testid={`advance-${order.id}-btn`}
-                          disabled={busyId === order.id}
-                          onClick={() => advanceStatus(order, meta.next)}
-                          style={{
-                            background: palette.moss,
-                            color: 'white',
-                            border: 'none',
-                            padding: '10px 18px',
-                            borderRadius: 10,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            opacity: busyId === order.id ? 0.6 : 1,
-                          }}
-                        >
-                          {busyId === order.id ? '…' : `${meta.nextLabel} →`}
-                        </button>
-                      )}
-                      {!['delivered', 'cancelled'].includes(order.order_status) && (
-                        <button
-                          data-testid={`cancel-${order.id}-btn`}
-                          disabled={busyId === order.id}
-                          onClick={() => cancelOrder(order)}
-                          style={{
-                            background: 'transparent',
-                            color: palette.rust,
-                            border: `1.5px solid ${palette.rust}`,
-                            padding: '10px 14px',
-                            borderRadius: 10,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                  </footer>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* SIDEBAR — LOW STOCK ALERTS */}
-      <aside data-testid="low-stock-panel">
-        <div style={{ ...cardStyle, background: lowStock.length ? '#FFF5E5' : 'white', borderColor: lowStock.length ? palette.amber : palette.parchment }}>
-          <h4 style={{ margin: 0, color: palette.ink, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: lowStock.length ? palette.rust : '#9CC471' }} />
-            Low ingredient alerts
-          </h4>
-          <p style={{ fontSize: 12, color: '#6b6b6b', margin: '6px 0 14px' }}>
-            {lowStock.length
-              ? `${lowStock.length} item${lowStock.length > 1 ? 's' : ''} at or below threshold. Re-stock before service resumes.`
-              : 'All ingredients are above their threshold. You\'re good to serve.'}
+    <div data-testid="cms-manage-page">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h3 style={{ margin: 0, color: palette.ink, fontSize: 22 }}>Menu Manager</h3>
+          <p style={{ margin: '4px 0 0', color: '#777', fontSize: 13 }}>
+            Full CRUD for the <code>menu</code> table — create, edit, hide or delete items.
           </p>
-          {lowStock.length > 0 && (
-            <ul data-testid="low-stock-list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {lowStock.map((ing) => (
-                <li
-                  key={ing.id}
-                  style={{ padding: '10px 0', borderTop: '1px solid #F2E7CF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 700, color: palette.ink, fontSize: 13 }}>{ing.name}</div>
-                    <div style={{ fontSize: 11, color: '#6b6b6b' }}>
-                      threshold {Number(ing.low_stock_threshold).toLocaleString('id-ID')} {ing.unit || ''}
-                    </div>
-                  </div>
-                  <div style={{ color: palette.rust, fontWeight: 800, fontSize: 14 }}>
-                    {Number(ing.stock_quantity).toLocaleString('id-ID')} {ing.unit || ''}
-                  </div>
-                </li>
-              ))}
-            </ul>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <input
+            data-testid="menu-search"
+            type="text"
+            placeholder="Search by name or category…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            style={{ padding: '10px 14px', borderRadius: 10, border: `1px solid ${palette.parchment}`, minWidth: 240, fontSize: 13 }}
+          />
+          {userRole === 'admin' && (
+            <button
+              data-testid="menu-create-btn"
+              onClick={() => setModal({ mode: 'create', data: { is_available: 1, stock: 0 } })}
+              style={{ background: palette.moss, color: 'white', border: 'none', padding: '10px 16px', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}
+            >
+              + Add menu item
+            </button>
           )}
         </div>
-      </aside>
+      </div>
+
+      {msg && (
+        <div data-testid="menu-msg" style={{ background: '#E7F3D9', color: palette.mossDeep, padding: '10px 14px', borderRadius: 10, marginBottom: 14, fontSize: 13 }}>
+          {msg}
+        </div>
+      )}
+
+      <div style={card}>
+        {loading ? (
+          <div style={{ color: '#777' }}>Loading menu…</div>
+        ) : filtered.length === 0 ? (
+          <div data-testid="menu-empty" style={{ color: '#777', textAlign: 'center', padding: '24px 0' }}>No menu items match.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: '#777', fontSize: 11, textTransform: 'uppercase' }}>
+                <th style={{ padding: '10px 6px' }}>ID</th>
+                <th style={{ padding: '10px 6px' }}>Item</th>
+                <th style={{ padding: '10px 6px' }}>Category</th>
+                <th style={{ padding: '10px 6px', textAlign: 'right' }}>Price</th>
+                <th style={{ padding: '10px 6px' }}>Available</th>
+                {userRole === 'admin' && <th style={{ padding: '10px 6px' }}>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((item) => (
+                <tr key={item.id} data-testid={`menu-row-${item.id}`} style={{ borderTop: `1px solid ${palette.parchment}` }}>
+                  <td style={{ padding: '10px 6px', color: '#999' }}>#{item.id}</td>
+                  <td style={{ padding: '10px 6px', fontWeight: 600, color: palette.ink }}>{item.item_name}</td>
+                  <td style={{ padding: '10px 6px', color: '#666' }}>{item.category_name || '—'}</td>
+                  <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{fmtRp(item.price)}</td>
+                  <td style={{ padding: '10px 6px' }}>
+                    <span data-testid={`menu-available-${item.id}`} style={{
+                      display: 'inline-block', padding: '4px 10px', borderRadius: 999,
+                      background: item.is_available === 0 ? '#FEE' : '#E7F3D9',
+                      color: item.is_available === 0 ? palette.rust : palette.moss,
+                      fontWeight: 700, fontSize: 11,
+                    }}>{item.is_available === 0 ? 'Hidden' : 'Available'}</span>
+                  </td>
+                  {userRole === 'admin' && (
+                    <td style={{ padding: '10px 6px' }}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button data-testid={`menu-edit-${item.id}`}    onClick={() => setModal({ mode: 'edit', data: item })} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${palette.moss}`, background: 'white', color: palette.moss, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>Edit</button>
+                        <button data-testid={`menu-toggle-${item.id}`}  onClick={() => toggleAvailability(item)} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${palette.parchment}`, background: 'white', color: palette.ink, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>{item.is_available === 0 ? 'Show' : 'Hide'}</button>
+                        <button data-testid={`menu-delete-${item.id}`}  onClick={() => deleteItem(item)} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${palette.rust}`, background: 'white', color: palette.rust, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>Delete</button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {modal && (
+        <Modal title={modal.mode === 'edit' ? `Edit "${modal.data.item_name}"` : 'New menu item'} onClose={() => setModal(null)}>
+          <form onSubmit={saveItem} data-testid="menu-form" style={{ display: 'grid', gap: 10 }}>
+            <label style={{ fontSize: 12, color: '#666' }}>
+              Item name
+              <input data-testid="menu-form-name" name="item_name" defaultValue={modal.data.item_name || ''} required style={inputStyle} />
+            </label>
+            <label style={{ fontSize: 12, color: '#666' }}>
+              Category
+              <select data-testid="menu-form-category" name="category_id" defaultValue={modal.data.category_id || (categories[0] && categories[0].id) || ''} required style={inputStyle}>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: 12, color: '#666' }}>
+              Description
+              <textarea data-testid="menu-form-description" name="description" defaultValue={modal.data.description || ''} rows={2} style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical' }} />
+            </label>
+            <label style={{ fontSize: 12, color: '#666' }}>
+              Image URL
+              <input data-testid="menu-form-image" name="image_url" defaultValue={modal.data.image_url || ''} style={inputStyle} />
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <label style={{ fontSize: 12, color: '#666' }}>
+                Price (Rp)
+                <input data-testid="menu-form-price" name="price" type="number" min="0" step="500" defaultValue={modal.data.price || 0} required style={inputStyle} />
+              </label>
+              <label style={{ fontSize: 12, color: '#666' }}>
+                Stock
+                <input data-testid="menu-form-stock" name="stock" type="number" min="0" defaultValue={modal.data.stock ?? 0} style={inputStyle} />
+              </label>
+              <label style={{ fontSize: 12, color: '#666' }}>
+                Visibility
+                <select data-testid="menu-form-available" name="is_available" defaultValue={modal.data.is_available !== undefined ? modal.data.is_available : 1} style={inputStyle}>
+                  <option value={1}>Available</option>
+                  <option value={0}>Hidden</option>
+                </select>
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
+              <button type="button" onClick={() => setModal(null)} style={{ background: 'white', border: `1px solid ${palette.parchment}`, padding: '10px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>Cancel</button>
+              <button data-testid="menu-form-submit" disabled={busy} type="submit" style={{ background: palette.moss, color: 'white', border: 'none', padding: '10px 18px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
+                {busy ? 'Saving…' : (modal.mode === 'edit' ? 'Save changes' : 'Create item')}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }
