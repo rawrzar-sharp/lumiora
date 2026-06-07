@@ -66,21 +66,26 @@ class _CartPageState extends State<CartPage> {
   // MODIFIER SHEET (FIX ISSUE 3: UI disamakan dengan Menu Page & Responsif)
   // --------------------------------------------------------------------------
   void _showModifierSheet(BuildContext context, int index, Map<String, dynamic> item) {
-    int currentSpice = 0;
-    if (item['selectedSpice'] is int) {
-      currentSpice = item['selectedSpice'];
-    } else if (item['selectedSpice'] != null) {
-      currentSpice = int.tryParse(item['selectedSpice'].toString()) ?? 0;
-    }
+    // Preferences (e.g. "Hot - Standard Bean", "Iced - No Sugar", spice level…)
+    // come from the menu_items.customization_options JSON. They get stored on
+    // every cart entry as `spiceOptions` (list) + `selectedSpice` (current
+    // pick). The legacy numeric slider (`spice_level_max`) is kept as a
+    // fallback for very old carts.
+    final List<String> spiceOpts = List<String>.from(item['spiceOptions'] ?? []);
+    String selectedSpiceStr = (item['selectedSpice'] ?? '').toString();
 
-    List<String> currentAddons = List<String>.from(item['selectedAddons'] ?? []);
-    
+    int currentSpiceLevel = 0;
+    if (item['selectedSpice'] is int) {
+      currentSpiceLevel = item['selectedSpice'];
+    }
     int maxSpice = 0;
     if (item['spice_level_max'] is num) {
       maxSpice = (item['spice_level_max'] as num).toInt();
     } else if (item['spice_max'] is num) {
       maxSpice = (item['spice_max'] as num).toInt();
     }
+
+    List<String> currentAddons = List<String>.from(item['selectedAddons'] ?? []);
 
     Map<String, int> addonOpts = {};
     if (item['addonOptions'] is Map) {
@@ -115,85 +120,138 @@ class _CartPageState extends State<CartPage> {
             }
             int displayTotal = tempSubtotal * qty;
 
+            final bool hasAnyOption =
+                spiceOpts.isNotEmpty || addonOpts.isNotEmpty || maxSpice > 0;
+
             return Padding(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(context).viewInsets.bottom + 20,
                 top: 24, left: 24, right: 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Modify ${item['name']}", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
-                  const SizedBox(height: 20),
-                  
-                  // Opsi Spice Level (Jika ada)
-                  if (maxSpice > 0) ...[
-                    Text("SPICE LEVEL", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: primaryGreen)),
-                    const SizedBox(height: 8),
-                    Slider(
-                      value: currentSpice.toDouble(),
-                      min: 0,
-                      max: maxSpice.toDouble(),
-                      divisions: maxSpice > 0 ? maxSpice : 1,
-                      activeColor: primaryGreen,
-                      label: currentSpice == 0 ? "Normal" : "Level $currentSpice",
-                      onChanged: (val) {
-                        setModalState(() => currentSpice = val.toInt());
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Modify ${item['name']}", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
+                    const SizedBox(height: 20),
 
-                  // Opsi Add-ons (Jika ada)
-                  if (addonOpts.isNotEmpty) ...[
-                    Text("ADD-ONS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: primaryGreen)),
-                    const SizedBox(height: 8),
-                    ...addonOpts.keys.map((addonKey) {
-                      bool hasAddon = currentAddons.contains(addonKey);
-                      return CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading, // Checkbox di kiri
-                        title: Text(addonKey, style: TextStyle(color: textDark, fontWeight: FontWeight.w500, fontSize: 15)),
-                        subtitle: Text("+ ${_formatRp(addonOpts[addonKey] ?? 0)}", style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                        value: hasAddon,
+                    if (!hasAnyOption)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          "Item ini belum punya opsi kustomisasi.",
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                        ),
+                      ),
+
+                    // PREFERENCES (Hot/Iced, sugar levels, spice variants…)
+                    if (spiceOpts.isNotEmpty) ...[
+                      Text("PREFERENCES", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: primaryGreen)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: spiceOpts.map<Widget>((opt) {
+                          final bool isSel = selectedSpiceStr == opt;
+                          return ChoiceChip(
+                            label: Text(
+                              opt,
+                              style: TextStyle(
+                                color: isSel ? Colors.white : Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            selected: isSel,
+                            selectedColor: primaryGreen,
+                            backgroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(color: primaryGreen.withOpacity(0.4)),
+                            ),
+                            onSelected: (val) {
+                              setModalState(() => selectedSpiceStr = opt);
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // Numeric spice slider (legacy items)
+                    if (spiceOpts.isEmpty && maxSpice > 0) ...[
+                      Text("SPICE LEVEL", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: primaryGreen)),
+                      const SizedBox(height: 8),
+                      Slider(
+                        value: currentSpiceLevel.toDouble(),
+                        min: 0,
+                        max: maxSpice.toDouble(),
+                        divisions: maxSpice > 0 ? maxSpice : 1,
                         activeColor: primaryGreen,
-                        onChanged: (checked) {
-                          setModalState(() {
-                            if (checked == true) {
-                              currentAddons.add(addonKey);
-                            } else {
-                              currentAddons.remove(addonKey);
-                            }
-                          });
+                        label: currentSpiceLevel == 0 ? "Normal" : "Level $currentSpiceLevel",
+                        onChanged: (val) {
+                          setModalState(() => currentSpiceLevel = val.toInt());
                         },
-                      );
-                    }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Opsi Add-ons (Jika ada)
+                    if (addonOpts.isNotEmpty) ...[
+                      Text("ADD-ONS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: primaryGreen)),
+                      const SizedBox(height: 8),
+                      ...addonOpts.keys.map((addonKey) {
+                        bool hasAddon = currentAddons.contains(addonKey);
+                        return CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: Text(addonKey, style: TextStyle(color: textDark, fontWeight: FontWeight.w500, fontSize: 15)),
+                          subtitle: Text("+ ${_formatRp(addonOpts[addonKey] ?? 0)}", style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                          value: hasAddon,
+                          activeColor: primaryGreen,
+                          onChanged: (checked) {
+                            setModalState(() {
+                              if (checked == true) {
+                                currentAddons.add(addonKey);
+                              } else {
+                                currentAddons.remove(addonKey);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ],
+
+                    const SizedBox(height: 24),
+
+                    // Tombol Apply
+                    ElevatedButton(
+                      onPressed: () {
+                        // Persist preferences back onto the cart item.
+                        if (spiceOpts.isNotEmpty) {
+                          item['selectedSpice'] = selectedSpiceStr;
+                        } else if (maxSpice > 0) {
+                          item['selectedSpice'] = currentSpiceLevel;
+                        }
+                        item['selectedAddons'] = currentAddons;
+                        // Refresh kalkulasi keranjang
+                        CartManager.instance.updateQuantity(index, qty);
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryGreen,
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        "Apply Changes - ${_formatRp(displayTotal)}",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                      ),
+                    ),
                   ],
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Tombol Apply
-                  ElevatedButton(
-                    onPressed: () {
-                      item['selectedSpice'] = currentSpice;
-                      item['selectedAddons'] = currentAddons;
-                      // Refresh kalkulasi keranjang
-                      CartManager.instance.updateQuantity(index, qty); 
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryGreen,
-                      minimumSize: const Size(double.infinity, 54),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      "Apply Changes - ${_formatRp(displayTotal)}", 
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
-                    ),
-                  ),
-                ],
+                ),
               ),
             );
           },
