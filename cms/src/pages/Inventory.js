@@ -86,9 +86,7 @@ export default function InventoryPage({ apiUrl, token, userRole }) {
     } catch (e) { /* ignore */ }
   }, [apiUrl, token]);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+      useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // Look up the full recipe (ingredients + steps) for a menu item id. Used by
   // the expandable rows on the Menu tab.
