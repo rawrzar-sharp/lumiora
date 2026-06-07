@@ -262,7 +262,6 @@ function App() {
         </header>
 
         <div className="content-wrapper">
-          <h2 data-testid="page-title" style={{ marginBottom: '20px' }}>{activeItem ? activeItem.label : ''}</h2>
 
           {activeMenu === 'dashboard' && <DashboardPage  apiUrl={API_URL} token={apiToken} />}
           {activeMenu === 'orders'    && <OrdersPage     apiUrl={API_URL} token={apiToken} />}
