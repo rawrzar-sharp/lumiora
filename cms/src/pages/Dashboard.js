@@ -172,13 +172,12 @@ export default function DashboardPage({ apiUrl, token, userRole, userName }) {
     }
   }, [apiUrl, token]);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchSummary();
     const t = setInterval(fetchSummary, 15000);
     return () => clearInterval(t);
   }, [fetchSummary]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+
 
   if (loading) return <div data-testid="dashboard-loading" style={card}>Loading dashboard…</div>;
   if (err)     return <div data-testid="dashboard-error" style={{ ...card, color: palette.rust }}>{err}</div>;

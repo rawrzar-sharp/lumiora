@@ -6,6 +6,6 @@ class AppConfig {
   static String get backendUrl {
     // We only need to check if it's not empty!
     if (_envBackend.isNotEmpty) return _envBackend;
-    return kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
+    return kIsWeb ? 'http://104.197.208.136:3000' : 'http://10.0.2.2:3000';
   }
 }
