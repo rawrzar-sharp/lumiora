@@ -93,45 +93,52 @@ app.get('/check-columns', async (req, res) => {
 
 // --- JALAN TIKUS UNTUK MEMPERBAIKI PASSWORD ADMIN & STAFF ---
 // The legacy seed put placeholder bcrypt strings into `users.password_hash`,
-// which makes login impossible. Hitting `/fix-admin` rewrites both built-in
-// accounts with real bcrypt hashes of `admin123` and `staff123` so the CMS
-// (and Flutter) login starts working immediately.
+// which makes login impossible. Hitting `/fix-admin` rewrites the built-in
+// accounts with real bcrypt hashes so the CMS (and Flutter) login starts
+// working immediately. The startup migration below already does the same on
+// every boot — this endpoint is just a manual escape hatch.
 const bcryptFix = require('bcryptjs');
+
+// Canonical set of CMS seed accounts. Edit this list to add/remove built-ins.
+const SEED_ACCOUNTS = [
+  { name: 'Super Admin', email: 'diamonddark269@gmail.com', password: 'admin123', role: 'admin' },
+  { name: 'Admin Cafe',  email: 'admin12@gmail.com',        password: 'admin123', role: 'admin' },
+  { name: 'Staff Cafe',  email: 'staff25@gmail.com',        password: 'staff123', role: 'staff' },
+];
+
+// Emails that used to be seeded but should now be retired.
+const RETIRED_SEED_EMAILS = ['staff@lumiora.com'];
+
+async function seedBuiltinAccounts(db) {
+  for (const acc of SEED_ACCOUNTS) {
+    const hash = await bcryptFix.hash(acc.password, 10);
+    // Upsert: if the email already exists, force the role + password back to
+    // the seeded values so a corrupted hash can't lock the operator out.
+    await db.query(
+      `INSERT INTO users (name, email, password_hash, role)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), role = VALUES(role)`,
+      [acc.name, acc.email, hash, acc.role]
+    );
+  }
+  if (RETIRED_SEED_EMAILS.length > 0) {
+    await db.query(
+      `DELETE FROM users WHERE email IN (?)`,
+      [RETIRED_SEED_EMAILS]
+    );
+  }
+}
+
 app.get('/fix-admin', async (req, res) => {
   try {
-    const adminHash = await bcryptFix.hash('admin123', 10);
-    const staffHash = await bcryptFix.hash('staff123', 10);
-
-    await req.db.query(
-      "UPDATE users SET password_hash = ?, role = 'admin' WHERE email = 'diamonddark269@gmail.com'",
-      [adminHash]
-    );
-    await req.db.query(
-      "UPDATE users SET password_hash = ?, role = 'staff' WHERE email = 'staff@lumiora.com'",
-      [staffHash]
-    );
-
-    // Backfill: if the seed users weren't there yet, create them.
-    await req.db.query(
-      `INSERT INTO users (name, email, password_hash, role)
-       SELECT 'Super Admin', 'diamonddark269@gmail.com', ?, 'admin'
-       WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'diamonddark269@gmail.com')`,
-      [adminHash]
-    );
-    await req.db.query(
-      `INSERT INTO users (name, email, password_hash, role)
-       SELECT 'Staff Cafe', 'staff@lumiora.com', ?, 'staff'
-       WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'staff@lumiora.com')`,
-      [staffHash]
-    );
-
+    await seedBuiltinAccounts(req.db);
+    const list = SEED_ACCOUNTS
+      .map(a => `<li><b>${a.role.toUpperCase()}:</b> ${a.email} / ${a.password}</li>`)
+      .join('');
     res.send(`<h1>SUKSES!</h1>
-      <p>Password admin & staff sudah dienkripsi ulang dengan bcrypt.</p>
-      <ul>
-        <li><b>Admin:</b> diamonddark269@gmail.com / admin123</li>
-        <li><b>Staff:</b> staff@lumiora.com / staff123</li>
-      </ul>
-      <p>Silakan kembali ke CMS dan login pakai email di atas.</p>`);
+      <p>Akun seed sudah dipasang ulang dengan bcrypt.</p>
+      <ul>${list}</ul>
+      <p>Silakan kembali ke CMS dan login pakai salah satu akun di atas.</p>`);
   } catch (error) {
     res.status(500).send('Gagal: ' + error.message);
   }
@@ -152,9 +159,162 @@ async function waitForDatabase(retries = 20, delayMs = 1000) {
   throw new Error('Database did not become ready in time');
 }
 
+// ---------------------------------------------------------------------------
+// Self-healing startup migrations.
+// We can't assume the operator has run the SQL files in phpMyAdmin (that has
+// bitten us twice already), so the API quietly ensures its own schema on every
+// boot. Each step is idempotent and cheap:
+//   1. Make sure `order_items` has preferences_json / addons_json / notes.
+//   2. Make sure `menu_items.customization_options` exists.
+//   3. Rewrite the customization payload into the new `preference_groups`
+//      shape (Ice / Sugar / Bean / Style / Temperature / Spice Level).
+// If any step fails we log a warning and continue — the API still boots so
+// the operator can investigate without losing the whole service.
+// ---------------------------------------------------------------------------
+async function runStartupMigrations() {
+  const addColumnIfMissing = async (table, column, ddl) => {
+    const [rows] = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+      [table, column]
+    );
+    if (rows[0].cnt === 0) {
+      console.log(`[startup-mig] adding ${table}.${column}`);
+      await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN ${ddl}`);
+    }
+  };
+
+  try {
+    // 1. order_items columns
+    await addColumnIfMissing('order_items', 'preferences_json', '`preferences_json` JSON NULL AFTER `price_at_sale`');
+    await addColumnIfMissing('order_items', 'addons_json',      '`addons_json` JSON NULL AFTER `preferences_json`');
+    await addColumnIfMissing('order_items', 'notes',            '`notes` TEXT NULL AFTER `addons_json`');
+
+    // 2. menu_items.customization_options
+    await addColumnIfMissing('menu_items', 'customization_options', '`customization_options` JSON NULL');
+
+    // 3. Seed preference_groups if at least one row is still on the old shape
+    const [stale] = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM menu_items
+        WHERE customization_options IS NULL
+           OR JSON_EXTRACT(customization_options, '$.preference_groups') IS NULL`
+    );
+    if (stale[0].cnt > 0) {
+      console.log(`[startup-mig] seeding preference_groups on ${stale[0].cnt} menu_items row(s)`);
+
+      // Coffee + Lattes (Ice / Sugar / Bean)
+      await pool.query(`
+        UPDATE menu_items SET customization_options = JSON_OBJECT(
+          'preference_groups', JSON_OBJECT(
+            'Ice Level',   JSON_ARRAY('Hot', 'Less Ice', 'Normal Ice'),
+            'Sugar Level', JSON_ARRAY('Normal Sugar (100%)', 'Less Sugar (75%)',
+                                      'Half Sugar (50%)', 'Slight Sugar (25%)', 'No Sugar'),
+            'Coffee Bean', JSON_ARRAY('Standard', 'Strong')
+          ),
+          'addons', JSON_OBJECT(
+            'Oat Milk Upgrade', 8000, 'Almond Milk Upgrade', 9000,
+            'Extra Espresso Shot', 5000, 'Caramel Drizzle', 4000, 'Vanilla Syrup', 4000
+          )
+        ) WHERE id IN (1, 3, 4, 5, 6, 9, 10, 11, 12, 14, 15, 16)`);
+
+      // Aren Lattes (Ice / Sugar)
+      await pool.query(`
+        UPDATE menu_items SET customization_options = JSON_OBJECT(
+          'preference_groups', JSON_OBJECT(
+            'Ice Level',   JSON_ARRAY('Hot', 'Less Ice', 'Normal Ice'),
+            'Sugar Level', JSON_ARRAY('Normal Sugar (100%)', 'Less Sugar (75%)',
+                                      'Half Sugar (50%)', 'Slight Sugar (25%)')
+          ),
+          'addons', JSON_OBJECT(
+            'Extra Palm Sugar', 3000, 'Sea Salt Cream Foam', 5000,
+            'Coffee Jelly Topping', 4000, 'Oat Milk Upgrade', 8000
+          )
+        ) WHERE id IN (2, 7, 8)`);
+
+      // Non-coffee (Ice / Sugar)
+      await pool.query(`
+        UPDATE menu_items SET customization_options = JSON_OBJECT(
+          'preference_groups', JSON_OBJECT(
+            'Ice Level',   JSON_ARRAY('Hot', 'Less Ice', 'Normal Ice'),
+            'Sugar Level', JSON_ARRAY('Normal Sugar (100%)', 'Less Sugar (75%)',
+                                      'Half Sugar (50%)', 'Slight Sugar (25%)', 'No Sugar')
+          ),
+          'addons', JSON_OBJECT(
+            'Strawberry Puree', 5000, 'Matcha Cold Foam', 6000,
+            'Chewy Boba Pearls', 4000, 'Soy Milk Upgrade', 7000
+          )
+        ) WHERE id IN (17, 18, 19)`);
+
+      // Bundles (Style)
+      await pool.query(`
+        UPDATE menu_items SET customization_options = JSON_OBJECT(
+          'preference_groups', JSON_OBJECT(
+            'Style', JSON_ARRAY('All Iced', 'All Hot', 'Mix (Please add to notes)')
+          ),
+          'addons', JSON_OBJECT(
+            'Upgrade All to Large', 15000, 'Add Greeting Card', 5000,
+            'Premium Carrier Bag', 3000, 'Add 3 Butter Croissants', 25000
+          )
+        ) WHERE id BETWEEN 20 AND 28`);
+
+      // Savory pastries (Temperature)
+      await pool.query(`
+        UPDATE menu_items SET customization_options = JSON_OBJECT(
+          'preference_groups', JSON_OBJECT(
+            'Temperature', JSON_ARRAY('Toasted & Warmed', 'Room Temperature')
+          ),
+          'addons', JSON_OBJECT(
+            'Extra Melted Cheese', 5000, 'Spicy Mayo Dip', 3000,
+            'Truffle Oil Splash', 6000, 'Smoked Beef Slice', 7000
+          )
+        ) WHERE id IN (29, 30, 33)`);
+
+      // Sweet pastries (Temperature)
+      await pool.query(`
+        UPDATE menu_items SET customization_options = JSON_OBJECT(
+          'preference_groups', JSON_OBJECT(
+            'Temperature', JSON_ARRAY('Warmed Up (Gooey)', 'Normal')
+          ),
+          'addons', JSON_OBJECT(
+            'Vanilla Ice Cream Scoop', 8000, 'Melted Chocolate Pour', 5000,
+            'Matcha Powder Dusting', 2000, 'Extra Butter Portion', 3000
+          )
+        ) WHERE id IN (31, 32, 34, 35)`);
+
+      // Skewers (Spice Level)
+      await pool.query(`
+        UPDATE menu_items SET customization_options = JSON_OBJECT(
+          'preference_groups', JSON_OBJECT(
+            'Spice Level', JSON_ARRAY('Mild', 'Medium Spicy', 'Volcano Spicy', 'Sweet Soy Sauce Only')
+          ),
+          'addons', JSON_OBJECT(
+            'Nori Seaweed Flakes', 2000, 'Extra Gochujang Sauce', 4000,
+            'Mozzarella Wrap', 7000, 'Garlic Mayo Drizzle', 3000
+          )
+        ) WHERE id BETWEEN 36 AND 40`);
+    }
+
+    console.log('[startup-mig] complete');
+  } catch (err) {
+    console.error('[startup-mig] failed (continuing anyway):', err.message);
+  }
+
+  // Always (re)seed the built-in CMS accounts so the operator can never get
+  // locked out of admin. Runs after the schema migration so the `users` table
+  // is guaranteed to exist.
+  try {
+    await seedBuiltinAccounts(pool);
+    console.log('[startup-mig] built-in CMS accounts ensured: ' +
+      SEED_ACCOUNTS.map(a => `${a.email} (${a.role})`).join(', '));
+  } catch (err) {
+    console.error('[startup-mig] seedBuiltinAccounts failed:', err.message);
+  }
+}
+
 (async () => {
   try {
     await waitForDatabase(30, 1000);
+    await runStartupMigrations();
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`API Docs: http://localhost:${PORT}/api-docs`);

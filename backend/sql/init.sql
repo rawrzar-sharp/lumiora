@@ -275,94 +275,30 @@ ALTER TABLE `orders` ADD CONSTRAINT `fk_orders_menu` FOREIGN KEY (`menu_id`) REF
 -- 3. CUSTOMIZATIONS & RECIPIES
 -- =========================================================================
 
--- 1. Core Coffee & Lattes (IDs 1, 3, 4, 5, 6, 9, 10, 11, 12, 14, 15, 16)
--- Assignment Safe: Covers Hot/Cold, Sugar Levels, and Bean Types in a combined way to fit your current Flutter UI.
-UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY(
-      'Hot - Standard Bean', 'Hot - Strong Espresso', 
-      'Iced - Normal Sugar (100%)', 'Iced - Less Sugar (75%)', 
-      'Iced - Half Sugar (50%)', 'Iced - Slight Sugar (25%)', 'Iced - No Sugar'
-  ),
-  'addons', JSON_OBJECT(
-      'Oat Milk Upgrade', 8000, 
-      'Almond Milk Upgrade', 9000, 
-      'Extra Espresso Shot', 5000, 
-      'Caramel Drizzle', 4000, 
-      'Vanilla Syrup', 4000
-  )
-) WHERE id IN (1, 3, 4, 5, 6, 9, 10, 11, 12, 14, 15, 16);
-
--- 2. Signature Aren Lattes (IDs 2, 7, 8)
--- Focuses on the local sweetness and creaminess.
-UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Normal Sugar (100%)', 'Less Sugar (75%)', 'Half Sugar (50%)', 'Slight Sugar (25%)'),
-  'addons', JSON_OBJECT(
-      'Extra Palm Sugar', 3000, 
-      'Sea Salt Cream Foam', 5000, 
-      'Coffee Jelly Topping', 4000, 
-      'Oat Milk Upgrade', 8000
-  )
-) WHERE id IN (2, 7, 8);
-
--- 3. Non-Coffee Sweets (IDs 17, 18, 19)
--- Elevated matcha and chocolate combinations.
 UPDATE menu_items SET customization_options = JSON_OBJECT(
   'preferences', JSON_ARRAY('Normal Ice', 'Less Ice', 'No Ice', 'Hot'),
-  'addons', JSON_OBJECT(
-      'Strawberry Puree', 5000, 
-      'Matcha Cold Foam', 6000, 
-      'Chewy Boba Pearls', 4000, 
-      'Soy Milk Upgrade', 7000
-  )
-) WHERE id IN (17, 18, 19);
+  'addons',      JSON_OBJECT('Extra Shot Espresso', 5000, 'Oat Milk Upgrade', 8000, 'Caramel Drizzle', 4000, 'Vanilla Syrup', 4000)
+) WHERE id BETWEEN 1 AND 18;
 
--- 4. Bundles (IDs 20 to 28)
--- Options for sharing and packaging.
 UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('All Iced', 'All Hot', 'Mix (Please add to notes)'),
-  'addons', JSON_OBJECT(
-      'Upgrade All to Large', 15000, 
-      'Add Greeting Card', 5000, 
-      'Premium Carrier Bag', 3000, 
-      'Add 3 Butter Croissants', 25000
-  )
-) WHERE id BETWEEN 20 AND 28;
+  'preferences', JSON_ARRAY('Normal Sugar', 'Less Sugar', 'No Sugar'),
+  'addons',      JSON_OBJECT('Extra Shot Espresso', 5000, 'Oat Milk Upgrade', 8000)
+) WHERE id IN (2, 7, 8, 17, 18); 
 
--- 5. Savory Pastries & Sandwiches (IDs 29, 30, 33)
--- Rich, savory flavor enhancers.
 UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Toasted & Warmed', 'Room Temperature'),
-  'addons', JSON_OBJECT(
-      'Extra Melted Cheese', 5000, 
-      'Spicy Mayo Dip', 3000, 
-      'Truffle Oil Splash', 6000, 
-      'Smoked Beef Slice', 7000
-  )
-) WHERE id IN (29, 30, 33);
+  'preferences', JSON_ARRAY('All Iced', 'All Hot', 'Mixed (Notes required)'),
+  'addons',      JSON_OBJECT('Upgrade All to Large', 15000, 'Paper Carrier Bag', 2000)
+) WHERE id BETWEEN 19 AND 27;
 
--- 6. Sweet Pastries (IDs 31, 32, 34, 35)
--- Perfect dessert pairings.
 UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Warmed Up (Gooey)', 'Normal'),
-  'addons', JSON_OBJECT(
-      'Vanilla Ice Cream Scoop', 8000, 
-      'Melted Chocolate Pour', 5000, 
-      'Matcha Powder Dusting', 2000, 
-      'Extra Butter Portion', 3000
-  )
-) WHERE id IN (31, 32, 34, 35);
+  'preferences', JSON_ARRAY('Warm/Toasted', 'Room Temperature'),
+  'addons',      JSON_OBJECT('Extra Butter', 3000, 'Strawberry Jam', 4000)
+) WHERE id IN (28, 29);
 
--- 7. Skewers / Kitchen Snacks (IDs 36, 37, 38, 39, 40)
--- Street-food style toppings and spice levels.
 UPDATE menu_items SET customization_options = JSON_OBJECT(
-  'preferences', JSON_ARRAY('Mild', 'Medium Spicy', 'Volcano Spicy', 'Sweet Soy Sauce Only'),
-  'addons', JSON_OBJECT(
-      'Nori Seaweed Flakes', 2000, 
-      'Extra Gochujang Sauce', 4000, 
-      'Mozzarella Wrap', 7000, 
-      'Garlic Mayo Drizzle', 3000
-  )
-) WHERE id BETWEEN 36 AND 40;
+  'preferences', JSON_ARRAY('Mild', 'Medium Spicy', 'Extra Spicy'),
+  'addons',      JSON_OBJECT('Extra Cheese', 6000, 'Add Fried Egg', 5000)
+) WHERE id = 30;
 
 INSERT INTO `ingredients` (`id`, `name`, `stock_quantity`, `unit`, `low_stock_threshold`) VALUES
 (1, 'Espresso Beans', 5000.00, 'grams', 500.00),
@@ -406,8 +342,12 @@ INSERT INTO `report_hourly_orders_daily` (`report_date`, `order_hour`, `total_qu
 ('2026-05-31', 10, 3),  
 ('2026-05-31', 16, 2);  
 
--- Seed seed records smoothly safely 
+-- Seed CMS accounts. These placeholder hashes are immediately replaced by
+-- real bcrypt hashes via `seedBuiltinAccounts()` in web.js on every boot,
+-- so the actual hash value here is irrelevant — only the (name, email, role)
+-- triplet needs to match the SEED_ACCOUNTS list in web.js.
 INSERT INTO `users` (name, email, password_hash, role) VALUES
-('Super Admin', 'diamonddark269@gmail.com', '$2a$10$XyT5zN7e5N1yQJz8ZJ5a2O1bHq0z8G3b3/9KjG6V8U5e8e8e8e8e8', 'admin'),
-('Staff Cafe', 'staff@lumiora.com', '$2a$10$XyT5zN7e5N1yQJz8ZJ5a2O1bHq0z8G3b3/9KjG6V8U5e8e8e8e8e8', 'staff')
+('Super Admin', 'diamonddark269@gmail.com', '$2a$10$placeholderplaceholderplaceholderplaceholderplaceholder', 'admin'),
+('Admin Cafe',  'admin12@gmail.com',        '$2a$10$placeholderplaceholderplaceholderplaceholderplaceholder', 'admin'),
+('Staff Cafe',  'staff25@gmail.com',        '$2a$10$placeholderplaceholderplaceholderplaceholderplaceholder', 'staff')
 ON DUPLICATE KEY UPDATE `password_hash`=VALUES(`password_hash`);

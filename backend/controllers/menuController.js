@@ -56,15 +56,21 @@ exports.getMenuByCategory = async (req, res, next) => {
 
 exports.createMenu = async (req, res, next) => {
   try {
-    const { category_id, item_name, description, image_url, price, stock, is_Available } = req.body;
+    const { category_id, item_name, description, image_url, price, stock, is_Available, is_available } = req.body;
     if (!category_id || !item_name || !price) {
       return res.status(400).json({ success: false, message: 'category_id, item_name, and price are required' });
     }
-    const [result] = await req.db.query(
-      'INSERT INTO menu (category_id, item_name, description, image_url, price, stock, is_Available) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [category_id, item_name, description || '', image_url || '', price, stock ?? 0, is_Available !== undefined ? is_Available : 1]
+    const finalAvail = is_Available !== undefined ? is_Available : is_available;
+    // The legacy `menu` table doesn't have AUTO_INCREMENT on `id`, so we
+    // compute the next id manually. This keeps the CMS Create flow working
+    // without forcing every deployment to ALTER TABLE on day one.
+    const [maxRow] = await req.db.query('SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM menu');
+    const nextId = maxRow[0].next_id;
+    await req.db.query(
+      'INSERT INTO menu (id, category_id, item_name, description, image_url, price, stock, is_Available) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [nextId, category_id, item_name, description || '', image_url || '', price, stock ?? 0, finalAvail !== undefined ? finalAvail : 1]
     );
-    res.status(201).json({ success: true, message: 'Menu item created', id: result.insertId });
+    res.status(201).json({ success: true, message: 'Menu item created', id: nextId });
   } catch (error) {
     next(error);
   }

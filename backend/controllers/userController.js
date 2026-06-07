@@ -49,9 +49,15 @@ exports.createUser = async (req, res, next) => {
 exports.updateUser = async (req, res, next) => {
   try {
     const { name, email, role } = req.body;
+    // COALESCE so the CMS can PATCH a single field (e.g. just `role`) without
+    // wiping the other columns.
     const [result] = await req.db.query(
-      'UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?',
-      [name, email, role, req.params.id]
+      `UPDATE users SET
+         name  = COALESCE(?, name),
+         email = COALESCE(?, email),
+         role  = COALESCE(?, role)
+       WHERE id = ?`,
+      [name ?? null, email ?? null, role ?? null, req.params.id]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'User not found' });

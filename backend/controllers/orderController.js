@@ -148,10 +148,23 @@ exports.createOrder = async (req, res) => {
         for (const a of selected) {
           price += Number(addonOpts[a] ?? 0);
         }
-        return { menu_item_id: id, quantity: qty, price_at_sale: price };
+        // selectedPreferences is the new multi-axis map (Ice Level / Sugar Level / …).
+        // Fall back to the legacy selectedSpice string so old carts still work.
+        let prefs = it.selectedPreferences || it.preferences || null;
+        if (!prefs && (it.selectedSpice !== undefined && it.selectedSpice !== null && it.selectedSpice !== '')) {
+          prefs = { Preference: String(it.selectedSpice) };
+        }
+        return {
+          menu_item_id: id,
+          quantity: qty,
+          price_at_sale: price,
+          preferences_json: prefs && Object.keys(prefs).length ? prefs : null,
+          addons_json: selected.length ? selected : null,
+          notes: it.notes || null,
+        };
       });
     } else if (menu_id) {
-      normalizedItems = [{ menu_item_id: menu_id, quantity: Number(quantity || 1), price_at_sale: grandTotal }];
+      normalizedItems = [{ menu_item_id: menu_id, quantity: Number(quantity || 1), price_at_sale: grandTotal, preferences_json: null, addons_json: null, notes: null }];
     }
 
     // Pull the first item to fill the legacy columns (menu_id, quantity, etc.) for
@@ -187,11 +200,34 @@ exports.createOrder = async (req, res) => {
     for (const it of normalizedItems) {
       const [exists] = await conn.query('SELECT id FROM menu_items WHERE id = ? LIMIT 1', [it.menu_item_id]);
       if (exists.length === 0) continue;
-      await conn.query(
-        `INSERT INTO order_items (order_id, menu_item_id, quantity, price_at_sale)
-         VALUES (?, ?, ?, ?)`,
-        [orderId, it.menu_item_id, it.quantity, it.price_at_sale]
-      );
+      try {
+        await conn.query(
+          `INSERT INTO order_items (order_id, menu_item_id, quantity, price_at_sale, preferences_json, addons_json, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            orderId,
+            it.menu_item_id,
+            it.quantity,
+            it.price_at_sale,
+            it.preferences_json ? JSON.stringify(it.preferences_json) : null,
+            it.addons_json      ? JSON.stringify(it.addons_json)      : null,
+            it.notes || null,
+          ]
+        );
+      } catch (err) {
+        // Defensive fallback: if the startup migration failed and the new
+        // columns don't exist yet (operator's DB never had them), retry the
+        // INSERT with the legacy column set so checkout still succeeds.
+        if (err && err.code === 'ER_BAD_FIELD_ERROR') {
+          await conn.query(
+            `INSERT INTO order_items (order_id, menu_item_id, quantity, price_at_sale)
+             VALUES (?, ?, ?, ?)`,
+            [orderId, it.menu_item_id, it.quantity, it.price_at_sale]
+          );
+        } else {
+          throw err;
+        }
+      }
     }
 
     await conn.commit();
