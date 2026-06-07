@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useCallback, useEffect, useState } from 'react';
 
 const palette = {
@@ -13,7 +14,7 @@ const fmtRp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 const card = {
   background: 'white',
   borderRadius: 14,
-  padding: '18px 20px',
+  padding: '14px 16px',
   boxShadow: '0 2px 10px rgba(31, 33, 23, 0.06)',
   border: `1px solid ${palette.parchment}`,
 };
@@ -60,15 +61,20 @@ export default function MenuManagePage({ apiUrl, token, userRole }) {
       if (c && c.success) setCategories(c.data || []);
     } catch (e) { /* ignore */ }
     finally { setLoading(false); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiUrl, token]);
 
   useEffect(() => { fetchMenu(); }, [fetchMenu]);
 
+  // Menu Manager shows ALL menu items including Bundling Duo + Trio.
+  // (Recipes page is the one that hides bundles — handled server-side.)
   const filtered = menu.filter((m) => {
     const q = filter.toLowerCase();
     if (!q) return true;
-    return (m.item_name || '').toLowerCase().includes(q) || (m.category_name || '').toLowerCase().includes(q);
+    return (
+      (m.item_name || '').toLowerCase().includes(q) ||
+      (m.category_name || '').toLowerCase().includes(q) ||
+      String(m.id).includes(q)
+    );
   });
 
   const toggleAvailability = async (item) => {
@@ -138,6 +144,38 @@ export default function MenuManagePage({ apiUrl, token, userRole }) {
     }
   };
 
+  const canEdit = userRole === 'admin';
+
+  // -------- table styles --------
+  const thStyle = {
+    textAlign: 'left',
+    padding: '12px 14px',
+    fontSize: 11,
+    color: '#777',
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    borderBottom: `1px solid ${palette.parchment}`,
+    background: '#FBF8EE',
+  };
+  const tdStyle = {
+    padding: '12px 14px',
+    fontSize: 13,
+    color: palette.ink,
+    borderBottom: `1px solid ${palette.parchment}`,
+    verticalAlign: 'middle',
+  };
+  const pillBtn = (border, color) => ({
+    padding: '6px 12px',
+    borderRadius: 999,
+    border: `1px solid ${border}`,
+    background: 'white',
+    color,
+    cursor: 'pointer',
+    fontWeight: 700,
+    fontSize: 12,
+  });
+
   return (
     <div data-testid="cms-manage-page">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
@@ -151,12 +189,12 @@ export default function MenuManagePage({ apiUrl, token, userRole }) {
           <input
             data-testid="menu-search"
             type="text"
-            placeholder="Search by name or category…"
+            placeholder="Search by ID, name or category…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             style={{ padding: '10px 14px', borderRadius: 10, border: `1px solid ${palette.parchment}`, minWidth: 240, fontSize: 13 }}
           />
-          {userRole === 'admin' && (
+          {canEdit && (
             <button
               data-testid="menu-create-btn"
               onClick={() => setModal({ mode: 'create', data: { is_available: 1, stock: 0 } })}
@@ -174,51 +212,76 @@ export default function MenuManagePage({ apiUrl, token, userRole }) {
         </div>
       )}
 
-      <div style={card}>
+      <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ color: '#777' }}>Loading menu…</div>
+          <div style={{ padding: 24, color: '#777' }}>Loading menu…</div>
         ) : filtered.length === 0 ? (
           <div data-testid="menu-empty" style={{ color: '#777', textAlign: 'center', padding: '24px 0' }}>No menu items match.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ textAlign: 'left', color: '#777', fontSize: 11, textTransform: 'uppercase' }}>
-                <th style={{ padding: '10px 6px' }}>ID</th>
-                <th style={{ padding: '10px 6px' }}>Item</th>
-                <th style={{ padding: '10px 6px' }}>Category</th>
-                <th style={{ padding: '10px 6px', textAlign: 'right' }}>Price</th>
-                <th style={{ padding: '10px 6px' }}>Available</th>
-                {userRole === 'admin' && <th style={{ padding: '10px 6px' }}>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((item) => (
-                <tr key={item.id} data-testid={`menu-row-${item.id}`} style={{ borderTop: `1px solid ${palette.parchment}` }}>
-                  <td style={{ padding: '10px 6px', color: '#999' }}>#{item.id}</td>
-                  <td style={{ padding: '10px 6px', fontWeight: 600, color: palette.ink }}>{item.item_name}</td>
-                  <td style={{ padding: '10px 6px', color: '#666' }}>{item.category_name || '—'}</td>
-                  <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{fmtRp(item.price)}</td>
-                  <td style={{ padding: '10px 6px' }}>
-                    <span data-testid={`menu-available-${item.id}`} style={{
-                      display: 'inline-block', padding: '4px 10px', borderRadius: 999,
-                      background: item.is_available === 0 ? '#FEE' : '#E7F3D9',
-                      color: item.is_available === 0 ? palette.rust : palette.moss,
-                      fontWeight: 700, fontSize: 11,
-                    }}>{item.is_available === 0 ? 'Hidden' : 'Available'}</span>
-                  </td>
-                  {userRole === 'admin' && (
-                    <td style={{ padding: '10px 6px' }}>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <button data-testid={`menu-edit-${item.id}`}    onClick={() => setModal({ mode: 'edit', data: item })} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${palette.moss}`, background: 'white', color: palette.moss, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>Edit</button>
-                        <button data-testid={`menu-toggle-${item.id}`}  onClick={() => toggleAvailability(item)} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${palette.parchment}`, background: 'white', color: palette.ink, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>{item.is_available === 0 ? 'Show' : 'Hide'}</button>
-                        <button data-testid={`menu-delete-${item.id}`}  onClick={() => deleteItem(item)} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${palette.rust}`, background: 'white', color: palette.rust, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>Delete</button>
-                      </div>
-                    </td>
-                  )}
+          <div style={{ overflowX: 'auto' }}>
+            <table data-testid="menu-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, width: 60 }}>ID</th>
+                  <th style={thStyle}>Item</th>
+                  <th style={{ ...thStyle, width: 160 }}>Category</th>
+                  <th style={{ ...thStyle, width: 120, textAlign: 'right' }}>Price</th>
+                  <th style={{ ...thStyle, width: 130 }}>Available</th>
+                  <th style={{ ...thStyle, width: 240, textAlign: 'right' }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map((item) => {
+                  const isAvail = !(item.is_available === 0 || item.is_available === false);
+                  return (
+                    <tr
+                      key={item.id}
+                      data-testid={`menu-row-${item.id}`}
+                      style={{ background: 'white' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#FBF8EE'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}
+                    >
+                      <td style={{ ...tdStyle, color: '#888', fontWeight: 600 }}>#{item.id}</td>
+                      <td style={{ ...tdStyle, fontWeight: 700 }}>{item.item_name}</td>
+                      <td style={{ ...tdStyle, color: '#666' }}>{item.category_name || '—'}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: palette.mossDeep }}>{fmtRp(item.price)}</td>
+                      <td style={tdStyle}>
+                        <span data-testid={`menu-available-${item.id}`} style={{
+                          display: 'inline-block', padding: '4px 10px', borderRadius: 999,
+                          background: isAvail ? '#E7F3D9' : '#FEE',
+                          color: isAvail ? palette.moss : palette.rust,
+                          fontWeight: 700, fontSize: 11,
+                        }}>{isAvail ? 'Available' : 'Hidden'}</span>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                        {canEdit ? (
+                          <div style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <button
+                              data-testid={`menu-edit-${item.id}`}
+                              onClick={() => setModal({ mode: 'edit', data: item })}
+                              style={{ ...pillBtn(palette.moss, 'white'), background: palette.moss }}
+                            >Edit</button>
+                            <button
+                              data-testid={`menu-toggle-${item.id}`}
+                              onClick={() => toggleAvailability(item)}
+                              style={pillBtn(palette.parchment, palette.ink)}
+                            >{isAvail ? 'Hide' : 'Show'}</button>
+                            <button
+                              data-testid={`menu-delete-${item.id}`}
+                              onClick={() => deleteItem(item)}
+                              style={pillBtn(palette.rust, palette.rust)}
+                            >Delete</button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 11, color: '#999' }}>read-only</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

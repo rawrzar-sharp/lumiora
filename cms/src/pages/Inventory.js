@@ -55,26 +55,44 @@ export default function InventoryPage({ apiUrl, token, userRole }) {
   const [ingredients, setIngredients] = useState([]);
   const [low, setLow] = useState([]);
   const [availability, setAvailability] = useState([]);
+  const [recipes, setRecipes] = useState([]); // /api/cms/recipes/full payload
   const [busyId, setBusyId] = useState(null);
   const [filter, setFilter] = useState('');
+  const [openRecipeId, setOpenRecipeId] = useState(null);
+
+  // "Add Ingredient" modal (admin only). Lets the admin link the new
+  // ingredient to one or many menu items so a single row (e.g. "Cheese") can
+  // back both "Ham n Cheese Croissant" and "Mac n Cheese".
+  const [showAddIng, setShowAddIng] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', unit: 'grams', stock_quantity: 0, low_stock_threshold: 0 });
+  const [addLinks, setAddLinks] = useState([]); // [{ menu_item_id, quantity_required }]
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState('');
 
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchAll = useCallback(async () => {
     try {
-      const [a, b, c] = await Promise.all([
+      const [a, b, c, d] = await Promise.all([
         fetch(`${apiUrl}/api/cms/ingredients`,        { headers: authHeaders }).then((r) => r.json()),
         fetch(`${apiUrl}/api/cms/ingredients/low`,    { headers: authHeaders }).then((r) => r.json()),
         fetch(`${apiUrl}/api/cms/menu-availability`,  { headers: authHeaders }).then((r) => r.json()),
+        fetch(`${apiUrl}/api/cms/recipes/full`,       { headers: authHeaders }).then((r) => r.json()),
       ]);
       if (a && a.success) setIngredients(a.data || []);
       if (b && b.success) setLow(b.data || []);
       if (c && c.success) setAvailability(c.data || []);
+      if (d && d.success) setRecipes(d.data || []);
     } catch (e) { /* ignore */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiUrl, token]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Look up the full recipe (ingredients + steps) for a menu item id. Used by
+  // the expandable rows on the Menu tab.
+  const recipeFor = (menuItemId) => recipes.find((r) => r.id === menuItemId) || null;
 
   const adjust = async (it, delta) => {
     setBusyId(it.id);
@@ -102,7 +120,42 @@ export default function InventoryPage({ apiUrl, token, userRole }) {
     finally { setBusyId(null); }
   };
 
+  // ---- "+ Add Ingredient" modal helpers (admin only) -----------------------
+  const resetAddForm = () => {
+    setAddForm({ name: '', unit: 'grams', stock_quantity: 0, low_stock_threshold: 0 });
+    setAddLinks([]);
+    setAddError('');
+  };
+  const addLinkRow = () => setAddLinks((prev) => [...prev, { menu_item_id: '', quantity_required: 1 }]);
+  const updateLink = (idx, patch) => setAddLinks((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  const removeLink = (idx) => setAddLinks((prev) => prev.filter((_, i) => i !== idx));
+  const submitAddIngredient = async () => {
+    if (!addForm.name.trim()) { setAddError('Ingredient name is required.'); return; }
+    setAddBusy(true);
+    setAddError('');
+    try {
+      const links = addLinks
+        .filter((l) => l.menu_item_id)
+        .map((l) => ({ menu_item_id: Number(l.menu_item_id), quantity_required: Number(l.quantity_required) || 1 }));
+      const res = await fetch(`${apiUrl}/api/cms/ingredients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ ...addForm, links }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) { setAddError(json.message || 'Failed to add ingredient'); return; }
+      setShowAddIng(false);
+      resetAddForm();
+      fetchAll();
+    } catch (e) {
+      setAddError('Could not reach the API');
+    } finally {
+      setAddBusy(false);
+    }
+  };
+
   const grouped = availability.reduce((acc, m) => {
+    if (Number(m.is_available) === 0 || m.availability === 'hidden') return acc;
     const cat = m.category_name || 'Uncategorised';
     (acc[cat] = acc[cat] || []).push(m);
     return acc;
@@ -148,7 +201,18 @@ export default function InventoryPage({ apiUrl, token, userRole }) {
       <section style={card} data-testid="inv-stock-card">
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
           <h4 style={{ margin: 0, color: palette.ink, fontSize: 17 }}>Stock</h4>
-          <span style={{ fontSize: 12, color: '#888' }}>{ingredients.length} ingredients</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 12, color: '#888' }}>{ingredients.length} ingredients</span>
+            {userRole === 'admin' && (
+              <button
+                data-testid="add-ingredient-btn"
+                onClick={() => { resetAddForm(); setShowAddIng(true); }}
+                style={{ padding: '8px 14px', borderRadius: 999, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 12, background: palette.moss, color: 'white' }}
+              >
+                + Add Ingredient
+              </button>
+            )}
+          </div>
         </header>
         {ingredients.length === 0 ? (
           <div data-testid="inv-stock-empty" style={{ color: '#777', textAlign: 'center', padding: '24px 0' }}>No ingredients in the database yet.</div>
@@ -240,21 +304,203 @@ export default function InventoryPage({ apiUrl, token, userRole }) {
                 </tr>
               </thead>
               <tbody>
-                {items.map((m) => (
-                  <tr key={m.id} data-testid={`menu-availability-${m.id}`} style={{ borderTop: `1px solid ${palette.parchment}` }}>
-                    <td style={{ padding: '8px 0', fontWeight: 600, color: palette.ink }}>#{m.id} · {m.item_name}</td>
-                    <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>{fmtRp(m.price)}</td>
-                    <td style={{ padding: '8px 0' }}><span style={pill(m.availability)}>{m.availability === 'low_ingredient' ? 'Low ingredient' : m.availability === 'hidden' ? 'Hidden' : 'Available'}</span></td>
-                    <td style={{ padding: '8px 0', color: '#A06A1F', fontSize: 12 }}>
-                      {m.low_ingredients.length === 0 ? '—' : m.low_ingredients.map((li) => `${li.ingredient_name} (${li.stock_quantity}/${li.low_stock_threshold} ${li.unit || ''})`).join(', ')}
-                    </td>
-                  </tr>
-                ))}
+                {items.map((m) => {
+                  const isOpen = openRecipeId === m.id;
+                  const rcp = isOpen ? recipeFor(m.id) : null;
+                  return (
+                    <React.Fragment key={m.id}>
+                      <tr
+                        data-testid={`menu-availability-${m.id}`}
+                        style={{ borderTop: `1px solid ${palette.parchment}`, cursor: 'pointer' }}
+                        onClick={() => setOpenRecipeId(isOpen ? null : m.id)}
+                      >
+                        <td style={{ padding: '8px 0', fontWeight: 600, color: palette.ink }}>
+                          <span style={{ marginRight: 6, color: palette.moss }}>{isOpen ? '▾' : '▸'}</span>
+                          #{m.id} · {m.item_name}
+                        </td>
+                        <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>{fmtRp(m.price)}</td>
+                        <td style={{ padding: '8px 0' }}><span style={pill(m.availability)}>{m.availability === 'low_ingredient' ? 'Low ingredient' : m.availability === 'hidden' ? 'Hidden' : 'Available'}</span></td>
+                        <td style={{ padding: '8px 0', color: '#A06A1F', fontSize: 12 }}>
+                          {m.low_ingredients.length === 0 ? '—' : m.low_ingredients.map((li) => `${li.ingredient_name} (${li.stock_quantity}/${li.low_stock_threshold} ${li.unit || ''})`).join(', ')}
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr data-testid={`menu-recipe-${m.id}`}>
+                          <td colSpan={4} style={{ background: '#FCFBF6', padding: '12px 14px', borderTop: `1px dashed ${palette.parchment}` }}>
+                            {!rcp ? (
+                              <div style={{ color: '#999', fontSize: 13 }}>Loading recipe…</div>
+                            ) : (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.4fr)', gap: 24 }}>
+                                <div>
+                                  <div style={{ fontSize: 11, fontWeight: 800, color: palette.moss, textTransform: 'uppercase', letterSpacing: 1 }}>Ingredients</div>
+                                  {rcp.ingredients.length === 0 ? (
+                                    <div style={{ color: '#999', fontSize: 13, marginTop: 6 }}>No ingredients linked yet.</div>
+                                  ) : (
+                                    <ul style={{ paddingLeft: 18, margin: '6px 0 0 0' }}>
+                                      {rcp.ingredients.map((ing) => (
+                                        <li key={ing.ingredient_id} style={{ padding: '3px 0', fontSize: 13, color: palette.ink }}>
+                                          <strong>{ing.quantity}{ing.unit ? ` ${ing.unit}` : ''}</strong> · {ing.ingredient_name}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 11, fontWeight: 800, color: palette.moss, textTransform: 'uppercase', letterSpacing: 1 }}>Step-by-step</div>
+                                  {rcp.steps.length === 0 ? (
+                                    <div style={{ color: '#999', fontSize: 13, marginTop: 6 }}>No preparation steps yet.</div>
+                                  ) : (
+                                    <ol style={{ paddingLeft: 22, margin: '6px 0 0 0' }}>
+                                      {rcp.steps.map((s, idx) => (
+                                        <li key={idx} style={{ padding: '3px 0', fontSize: 13, color: palette.ink, lineHeight: 1.5 }}>{s}</li>
+                                      ))}
+                                    </ol>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         ))}
       </section>
+      )}
+      {/* ========================= ADD INGREDIENT MODAL ========================= */}
+      {showAddIng && userRole === 'admin' && (
+        <div
+          data-testid="add-ingredient-modal"
+          onClick={() => !addBusy && setShowAddIng(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(31, 33, 23, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 18 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: 'white', borderRadius: 16, padding: 22, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
+          >
+            <h3 style={{ margin: 0, color: palette.ink, fontSize: 18 }}>Add Ingredient</h3>
+            <p style={{ marginTop: 4, marginBottom: 14, color: '#888', fontSize: 12 }}>
+              One ingredient can back many menu items (e.g. Cheese → Ham n Cheese Croissant + Mac n Cheese).
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: palette.ink }}>
+                Name
+                <input
+                  data-testid="add-ing-name"
+                  value={addForm.name}
+                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                  placeholder="e.g. Cheese Slices"
+                  style={{ marginTop: 4, width: '100%', padding: 8, borderRadius: 8, border: `1px solid ${palette.parchment}`, fontSize: 13 }}
+                />
+              </label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: palette.ink }}>
+                Unit
+                <select
+                  data-testid="add-ing-unit"
+                  value={addForm.unit}
+                  onChange={(e) => setAddForm({ ...addForm, unit: e.target.value })}
+                  style={{ marginTop: 4, width: '100%', padding: 8, borderRadius: 8, border: `1px solid ${palette.parchment}`, fontSize: 13 }}
+                >
+                  <option value="grams">grams</option>
+                  <option value="ml">ml</option>
+                  <option value="pcs">pcs</option>
+                </select>
+              </label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: palette.ink }}>
+                Stock Quantity
+                <input
+                  data-testid="add-ing-stock"
+                  type="number"
+                  value={addForm.stock_quantity}
+                  onChange={(e) => setAddForm({ ...addForm, stock_quantity: e.target.value })}
+                  style={{ marginTop: 4, width: '100%', padding: 8, borderRadius: 8, border: `1px solid ${palette.parchment}`, fontSize: 13 }}
+                />
+              </label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: palette.ink }}>
+                Low-stock Threshold
+                <input
+                  data-testid="add-ing-threshold"
+                  type="number"
+                  value={addForm.low_stock_threshold}
+                  onChange={(e) => setAddForm({ ...addForm, low_stock_threshold: e.target.value })}
+                  style={{ marginTop: 4, width: '100%', padding: 8, borderRadius: 8, border: `1px solid ${palette.parchment}`, fontSize: 13 }}
+                />
+              </label>
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ color: palette.ink, fontSize: 13 }}>Link to menu items</strong>
+                <button
+                  data-testid="add-ing-link-btn"
+                  type="button"
+                  onClick={addLinkRow}
+                  style={{ padding: '6px 12px', borderRadius: 999, border: `1px solid ${palette.moss}`, background: 'transparent', color: palette.moss, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
+                >+ Link to menu item</button>
+              </div>
+              <p style={{ marginTop: 4, marginBottom: 8, color: '#888', fontSize: 11 }}>Optional. Skip if this ingredient isn&apos;t tied to any drink/dish yet.</p>
+              {addLinks.length === 0 ? (
+                <div style={{ color: '#999', fontSize: 12, padding: '8px 0' }}>No links added yet.</div>
+              ) : (
+                addLinks.map((link, idx) => (
+                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 40px', gap: 8, marginTop: 8 }}>
+                    <select
+                      data-testid={`add-ing-link-menu-${idx}`}
+                      value={link.menu_item_id}
+                      onChange={(e) => updateLink(idx, { menu_item_id: e.target.value })}
+                      style={{ padding: 8, borderRadius: 8, border: `1px solid ${palette.parchment}`, fontSize: 13 }}
+                    >
+                      <option value="">— Select menu item —</option>
+                      {availability.filter((m) => Number(m.is_available) !== 0 && m.availability !== 'hidden').map((m) => (
+                        <option key={m.id} value={m.id}>#{m.id} · {m.item_name}</option>
+                      ))}
+                    </select>
+                    <input
+                      data-testid={`add-ing-link-qty-${idx}`}
+                      type="number"
+                      value={link.quantity_required}
+                      onChange={(e) => updateLink(idx, { quantity_required: e.target.value })}
+                      placeholder="Qty"
+                      style={{ padding: 8, borderRadius: 8, border: `1px solid ${palette.parchment}`, fontSize: 13, textAlign: 'right' }}
+                    />
+                    <button
+                      data-testid={`add-ing-link-remove-${idx}`}
+                      type="button"
+                      onClick={() => removeLink(idx)}
+                      style={{ background: '#FFF0EC', color: palette.rust, border: `1px solid ${palette.rust}`, borderRadius: 8, cursor: 'pointer', fontWeight: 800 }}
+                    >×</button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {addError && (
+              <div data-testid="add-ing-error" style={{ marginTop: 14, color: palette.rust, fontSize: 13, fontWeight: 700 }}>{addError}</div>
+            )}
+
+            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                data-testid="add-ing-cancel"
+                type="button"
+                disabled={addBusy}
+                onClick={() => setShowAddIng(false)}
+                style={{ padding: '10px 18px', borderRadius: 999, border: `1px solid ${palette.parchment}`, background: 'white', color: palette.ink, fontWeight: 800, cursor: 'pointer' }}
+              >Cancel</button>
+              <button
+                data-testid="add-ing-submit"
+                type="button"
+                disabled={addBusy}
+                onClick={submitAddIngredient}
+                style={{ padding: '10px 22px', borderRadius: 999, border: 'none', background: palette.moss, color: 'white', fontWeight: 800, cursor: 'pointer' }}
+              >{addBusy ? 'Saving…' : 'Save Ingredient'}</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

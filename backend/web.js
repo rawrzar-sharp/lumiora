@@ -9,7 +9,32 @@ const swaggerSpec = require('./swagger/swagger');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// CORS — explicit allowlist for production hosts plus permissive fallback
+// for tools that send no Origin (curl, Flutter app, Postman, server-to-server).
+// Set CORS_ORIGINS as a comma-separated env var to extend the list.
+const DEFAULT_CORS_ORIGINS = [
+  'http://43.133.144.212:1234',   // production API host (Swagger / direct hits)
+  'http://104.197.208.136',       // GCP-hosted CMS (HTTP)
+  'http://104.197.208.136:80',
+  'http://104.197.208.136:3000',
+  'http://104.197.208.136:1234',
+  'https://104.197.208.136',
+  'http://localhost:3000',
+  'http://localhost:1234',
+];
+const EXTRA = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+const ALLOWED_ORIGINS = [...new Set([...DEFAULT_CORS_ORIGINS, ...EXTRA])];
+app.use(cors({
+  origin: (origin, cb) => {
+    // No-origin requests (curl, mobile apps, server-side) are allowed.
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    // Be permissive for *.preview.emergentagent.com (preview tunnels).
+    if (/\.preview\.emergentagent\.com$/.test(new URL(origin).hostname)) return cb(null, true);
+    return cb(null, true); // currently permissive — change to cb(new Error('CORS')) to lock down
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 const path = require('path');
@@ -308,6 +333,18 @@ async function runStartupMigrations() {
       SEED_ACCOUNTS.map(a => `${a.email} (${a.role})`).join(', '));
   } catch (err) {
     console.error('[startup-mig] seedBuiltinAccounts failed:', err.message);
+  }
+
+  // Idempotently seed the master ingredients list, the per-item recipes
+  // (ingredients + quantities) and the per-item prep steps that power the new
+  // CMS "Recipes" page. Also soft-hides Bundling Duo + Trio so Menu Manager
+  // stops showing them — order history remains intact.
+  try {
+    const { seedRecipesAndIngredients } = require('./seed-recipes');
+    await seedRecipesAndIngredients(pool);
+    console.log('[startup-mig] recipes + ingredients seeded; bundles soft-hidden');
+  } catch (err) {
+    console.error('[startup-mig] seedRecipesAndIngredients failed:', err.message);
   }
 }
 
