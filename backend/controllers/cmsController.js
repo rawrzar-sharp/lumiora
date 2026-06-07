@@ -143,6 +143,135 @@ exports.getRecipes = async (req, res, next) => {
   }
 };
 
+// =====================================================================
+// Full recipe payload used by the new CMS "Recipes" page. Bundling Duo
+// (category #4) and Bundling Trio (#5) are EXCLUDED because they are
+// combo SKUs, not single recipes. Other menu items must be `is_available=1`.
+// =====================================================================
+exports.getRecipesFull = async (req, res, next) => {
+  try {
+    const [items] = await db.query(
+      `SELECT mi.id, mi.name AS item_name, mi.image_url, mi.base_price AS price,
+              mi.is_available, mc.id AS category_id, mc.name AS category_name
+         FROM menu_items mi
+         LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+         WHERE COALESCE(mi.is_available, 1) = 1
+           AND COALESCE(mc.id, 0) NOT IN (4, 5)
+         ORDER BY mc.id, mi.id`
+    );
+    const [recipeRows] = await db.query(
+      `SELECT r.menu_item_id, i.id AS ingredient_id, i.name AS ingredient_name,
+              i.unit, r.quantity_required
+         FROM recipes r
+         JOIN ingredients i ON i.id = r.ingredient_id
+         ORDER BY i.name`
+    );
+    // The steps table may not exist on very old volumes — guard the SELECT.
+    let stepRows = [];
+    try {
+      const [r] = await db.query(
+        'SELECT menu_item_id, step_no, text FROM menu_item_steps ORDER BY menu_item_id, step_no'
+      );
+      stepRows = r;
+    } catch (_) { /* table not seeded yet → empty steps */ }
+
+    const ingMap = new Map();
+    for (const r of recipeRows) {
+      const list = ingMap.get(r.menu_item_id) || [];
+      list.push({
+        ingredient_id: r.ingredient_id,
+        ingredient_name: r.ingredient_name,
+        unit: r.unit,
+        quantity: Number(r.quantity_required),
+      });
+      ingMap.set(r.menu_item_id, list);
+    }
+    const stepMap = new Map();
+    for (const s of stepRows) {
+      const list = stepMap.get(s.menu_item_id) || [];
+      list.push(s.text);
+      stepMap.set(s.menu_item_id, list);
+    }
+
+    const data = items.map((m) => ({
+      id: m.id,
+      item_name: m.item_name,
+      image_url: m.image_url,
+      price: Number(m.price),
+      category_id: m.category_id,
+      category_name: m.category_name,
+      ingredients: ingMap.get(m.id) || [],
+      steps: stepMap.get(m.id) || [],
+    }));
+    res.json({ success: true, count: data.length, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =====================================================================
+// Admin: create a brand-new ingredient row + optionally link it to one or
+// many menu items in a single shot. Used by the "+ Add ingredient" button
+// on the Stock tab. Body shape:
+//   { name, unit, stock_quantity, low_stock_threshold,
+//     links: [ { menu_item_id, quantity_required }, ... ] }
+// =====================================================================
+exports.createIngredient = async (req, res, next) => {
+  try {
+    const { name, unit, stock_quantity, low_stock_threshold, links } = req.body || {};
+    if (!name || !unit) {
+      return res.status(400).json({ success: false, message: 'name and unit are required' });
+    }
+    // If an ingredient with this name already exists, reuse it instead of
+    // duplicating — staff can adjust stock from the Stock tab.
+    const [existing] = await db.query('SELECT id FROM ingredients WHERE name = ? LIMIT 1', [name.trim()]);
+    let ingredientId;
+    if (existing.length > 0) {
+      ingredientId = existing[0].id;
+      await db.query(
+        'UPDATE ingredients SET unit = ?, stock_quantity = ?, low_stock_threshold = ? WHERE id = ?',
+        [unit, Number(stock_quantity) || 0, Number(low_stock_threshold) || 0, ingredientId]
+      );
+    } else {
+      const [result] = await db.query(
+        'INSERT INTO ingredients (name, unit, stock_quantity, low_stock_threshold) VALUES (?, ?, ?, ?)',
+        [name.trim(), unit, Number(stock_quantity) || 0, Number(low_stock_threshold) || 0]
+      );
+      ingredientId = result.insertId;
+    }
+
+    // Link this ingredient to the selected menu items. One ingredient can
+    // back many menu items (e.g. Cheese → Ham n Cheese AND Mac n Cheese).
+    if (Array.isArray(links)) {
+      for (const link of links) {
+        if (!link || !link.menu_item_id) continue;
+        const qty = Number(link.quantity_required) || 1;
+        // Upsert: if the recipe row already exists, just update qty.
+        const [hit] = await db.query(
+          'SELECT 1 FROM recipes WHERE menu_item_id = ? AND ingredient_id = ? LIMIT 1',
+          [link.menu_item_id, ingredientId]
+        );
+        if (hit.length > 0) {
+          await db.query(
+            'UPDATE recipes SET quantity_required = ? WHERE menu_item_id = ? AND ingredient_id = ?',
+            [qty, link.menu_item_id, ingredientId]
+          );
+        } else {
+          await db.query(
+            'INSERT INTO recipes (menu_item_id, ingredient_id, quantity_required) VALUES (?, ?, ?)',
+            [link.menu_item_id, ingredientId, qty]
+          );
+        }
+      }
+    }
+
+    const [rows] = await db.query('SELECT * FROM ingredients WHERE id = ?', [ingredientId]);
+    res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.getRecipeByMenu = async (req, res, next) => {
   try {
     const menuId = req.params.id;
