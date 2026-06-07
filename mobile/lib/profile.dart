@@ -7,6 +7,7 @@ import 'menu_page.dart';
 import 'auth/login.dart';
 import 'auth/register.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'app_config.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -31,7 +32,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final TextEditingController contactController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
-  String get _apiBase => kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
+  String get _apiBase => AppConfig.backendUrl;
 
   @override
   void initState() {
