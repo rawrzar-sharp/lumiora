@@ -397,7 +397,7 @@ class HomeScreen extends StatefulWidget {
             ),
           ],
         ),
-        // Lumiora logo medallion — bigger + uses the real brand asset
+// Lumiora logo medallion — bigger + uses the real brand asset
         Positioned(
           right: 18,
           top: 192,
@@ -414,20 +414,25 @@ class HomeScreen extends StatefulWidget {
                   BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 14, offset: const Offset(0, 6)),
                 ],
               ),
-              padding: const EdgeInsets.all(14),
-              child: Image.asset(
-                'assets/images/logo_lumiora.png',
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.spa, color: primaryGreen, size: 40),
-                      const SizedBox(height: 4),
-                      Text('LUMIORA',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w900, color: textDark, letterSpacing: 1.6)),
-                    ],
+              // 1. REMOVED the padding so the image touches the green border
+              
+              // 2. WRAPPED the image in a ClipOval (acts as a circular cookie-cutter)
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/images/logo_lumiora.png',
+                  // 3. CHANGED to BoxFit.cover so the grey background fills the circle entirely
+                  fit: BoxFit.cover, 
+                  errorBuilder: (context, error, stackTrace) => Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.spa, color: primaryGreen, size: 40),
+                        const SizedBox(height: 4),
+                        Text('LUMIORA',
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w900, color: textDark, letterSpacing: 1.6)),
+                      ],
+                    ),
                   ),
                 ),
               ),

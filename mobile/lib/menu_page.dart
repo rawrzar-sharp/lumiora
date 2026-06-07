@@ -420,43 +420,16 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
           children: [
             Row(
               children: [
-                Container(
+                // Load the image EXACTLY as it is, with no color blending
+                Image.asset(
+                  'assets/images/Only-Logo.png',
                   width: 44,
                   height: 44,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFB59A57), width: 1.5),
-                  ),
-                  child: const SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          left: 13,
-                          top: 4,
-                          child: Text(
-                            'L',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontFamily: 'serif',
-                              fontWeight: FontWeight.w400,
-                              color: Color(0xFFB59A57),
-                              height: 1.1,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: 10,
-                          bottom: 11,
-                          child: Icon(
-                            Icons.spa, 
-                            size: 15, 
-                            color: Color(0xFFB59A57),
-                          ),
-                        ),
-                      ],
-                    ),
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.spa, 
+                    color: Color(0xFFB59A57), 
+                    size: 32,
                   ),
                 ),
                 const SizedBox(width: 16),

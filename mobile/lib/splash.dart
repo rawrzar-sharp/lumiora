@@ -197,10 +197,11 @@ void initState() {
                         )
                       ],
                     ),
-                    padding: const EdgeInsets.all(24),
-                    child: Image.asset(
-                      'assets/images/logo_lumiora.png',
-                      fit: BoxFit.contain,
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/images/logo_lumiora.png', 
+                        fit: BoxFit.cover, 
+                      ),
                     ),
                   ),
                 ),
