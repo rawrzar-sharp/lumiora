@@ -91,18 +91,49 @@ app.get('/check-columns', async (req, res) => {
   }
 });
 
-// --- JALAN TIKUS UNTUK MEMPERBAIKI PASSWORD ADMIN ---
-const bcrypt = require('bcrypt');
+// --- JALAN TIKUS UNTUK MEMPERBAIKI PASSWORD ADMIN & STAFF ---
+// The legacy seed put placeholder bcrypt strings into `users.password_hash`,
+// which makes login impossible. Hitting `/fix-admin` rewrites both built-in
+// accounts with real bcrypt hashes of `admin123` and `staff123` so the CMS
+// (and Flutter) login starts working immediately.
+const bcryptFix = require('bcryptjs');
 app.get('/fix-admin', async (req, res) => {
   try {
-    // Mengubah 'admin123' menjadi password yang dienkripsi agar bisa dipakai login
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-    const sql = `UPDATE users SET password = ? WHERE email = 'diamonddark269@gmail.com'`;
-    
-    await req.db.query(sql, [hashedPassword]);
-    res.send("<h1>SUKSES!</h1><p>Password Admin berhasil dienkripsi di Database. Silakan kembali ke CMS dan coba Login!</p>");
+    const adminHash = await bcryptFix.hash('admin123', 10);
+    const staffHash = await bcryptFix.hash('staff123', 10);
+
+    await req.db.query(
+      "UPDATE users SET password_hash = ?, role = 'admin' WHERE email = 'diamonddark269@gmail.com'",
+      [adminHash]
+    );
+    await req.db.query(
+      "UPDATE users SET password_hash = ?, role = 'staff' WHERE email = 'staff@lumiora.com'",
+      [staffHash]
+    );
+
+    // Backfill: if the seed users weren't there yet, create them.
+    await req.db.query(
+      `INSERT INTO users (name, email, password_hash, role)
+       SELECT 'Super Admin', 'diamonddark269@gmail.com', ?, 'admin'
+       WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'diamonddark269@gmail.com')`,
+      [adminHash]
+    );
+    await req.db.query(
+      `INSERT INTO users (name, email, password_hash, role)
+       SELECT 'Staff Cafe', 'staff@lumiora.com', ?, 'staff'
+       WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'staff@lumiora.com')`,
+      [staffHash]
+    );
+
+    res.send(`<h1>SUKSES!</h1>
+      <p>Password admin & staff sudah dienkripsi ulang dengan bcrypt.</p>
+      <ul>
+        <li><b>Admin:</b> diamonddark269@gmail.com / admin123</li>
+        <li><b>Staff:</b> staff@lumiora.com / staff123</li>
+      </ul>
+      <p>Silakan kembali ke CMS dan login pakai email di atas.</p>`);
   } catch (error) {
-    res.send("Gagal: " + error.message);
+    res.status(500).send('Gagal: ' + error.message);
   }
 });
 

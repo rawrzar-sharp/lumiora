@@ -130,3 +130,79 @@ exports.getMonthlySales = async (req, res, next) => {
     next(error);
   }
 };
+
+// =====================================================================
+// Admin dashboard overview — one round-trip for the Dashboard tab.
+// Returns today's revenue, today's order count, queue counts by status,
+// number of customers, and the 5 most recent orders. Everything is read
+// from the live tables so the dashboard reflects the actual database.
+// =====================================================================
+exports.getDashboardSummary = async (req, res, next) => {
+  try {
+    const [[todayRow]] = await db.query(
+      `SELECT
+         COALESCE(SUM(total_amount), 0)            AS revenue_today,
+         COUNT(*)                                  AS orders_today
+       FROM orders
+       WHERE DATE(created_at) = CURDATE()`
+    );
+
+    const [[totalsRow]] = await db.query(
+      `SELECT
+         COUNT(*)                                                                 AS orders_total,
+         COALESCE(SUM(total_amount), 0)                                           AS revenue_total,
+         SUM(CASE WHEN order_status = 'pending'    THEN 1 ELSE 0 END)             AS queue_pending,
+         SUM(CASE WHEN order_status = 'preparing'  THEN 1 ELSE 0 END)             AS queue_preparing,
+         SUM(CASE WHEN order_status = 'ready'      THEN 1 ELSE 0 END)             AS queue_ready,
+         SUM(CASE WHEN order_status = 'delivered'  THEN 1 ELSE 0 END)             AS queue_done
+       FROM orders`
+    );
+
+    const [[customersRow]] = await db.query(`SELECT COUNT(*) AS total FROM customer`);
+    const [[lowStockRow]]  = await db.query(
+      `SELECT COUNT(*) AS total FROM ingredients
+        WHERE stock_quantity <= low_stock_threshold`
+    );
+
+    const [recent] = await db.query(
+      `SELECT o.id, o.order_number, o.order_status, o.order_type,
+              o.total_amount, o.created_at,
+              c.name AS customer_name
+         FROM orders o
+         LEFT JOIN customer c ON o.customer_id = c.id
+         ORDER BY o.created_at DESC
+         LIMIT 5`
+    );
+
+    const [topItems] = await db.query(
+      `SELECT m.id, m.item_name,
+              SUM(oi.quantity)                  AS qty_sold,
+              SUM(oi.quantity * oi.price_at_sale) AS revenue
+         FROM order_items oi
+         JOIN menu m ON m.id = oi.menu_item_id
+         GROUP BY m.id, m.item_name
+         ORDER BY qty_sold DESC
+         LIMIT 5`
+    );
+
+    res.json({
+      success: true,
+      data: {
+        revenue_today:    Number(todayRow.revenue_today)    || 0,
+        orders_today:     Number(todayRow.orders_today)     || 0,
+        orders_total:     Number(totalsRow.orders_total)    || 0,
+        revenue_total:    Number(totalsRow.revenue_total)   || 0,
+        queue_pending:    Number(totalsRow.queue_pending)   || 0,
+        queue_preparing:  Number(totalsRow.queue_preparing) || 0,
+        queue_ready:      Number(totalsRow.queue_ready)     || 0,
+        queue_done:       Number(totalsRow.queue_done)      || 0,
+        customers_total:  Number(customersRow.total)        || 0,
+        low_stock_count:  Number(lowStockRow.total)         || 0,
+        recent_orders:    recent,
+        top_items:        topItems,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

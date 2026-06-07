@@ -20,4 +20,7 @@ router.get('/recipes/menu/:id', authenticate, cms.getRecipeByMenu);
 router.get('/reports/daily', authenticate, cms.getDailySales);
 router.get('/reports/monthly', authenticate, cms.getMonthlySales);
 
+// Admin dashboard summary (revenue / queue / customers / recent orders / top items)
+router.get('/dashboard/summary', authenticate, cms.getDashboardSummary);
+
 module.exports = router;
