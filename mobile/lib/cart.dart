@@ -66,11 +66,17 @@ class _CartPageState extends State<CartPage> {
   // MODIFIER SHEET (FIX ISSUE 3: UI disamakan dengan Menu Page & Responsif)
   // --------------------------------------------------------------------------
   void _showModifierSheet(BuildContext context, int index, Map<String, dynamic> item) {
-    // Preferences (e.g. "Hot - Standard Bean", "Iced - No Sugar", spice level…)
-    // come from the menu_items.customization_options JSON. They get stored on
-    // every cart entry as `spiceOptions` (list) + `selectedSpice` (current
-    // pick). The legacy numeric slider (`spice_level_max`) is kept as a
-    // fallback for very old carts.
+    // Pull every customization axis off the cart entry:
+    //   • preferenceGroups → new multi-axis map (Ice Level / Sugar Level / …)
+    //   • spiceOptions     → legacy single-axis chip list
+    //   • spice_level_max  → very old numeric slider
+    //   • addonOptions     → priced add-ons
+    final Map<String, List<String>> prefGroups = (item['preferenceGroups'] as Map?)
+        ?.map((k, v) => MapEntry(k.toString(), List<String>.from((v as List).map((x) => x.toString())))) ?? {};
+    final Map<String, String> selectedPrefs = Map<String, String>.from(
+      (item['selectedPreferences'] as Map?)?.cast<String, String>() ?? <String, String>{},
+    );
+
     final List<String> spiceOpts = List<String>.from(item['spiceOptions'] ?? []);
     String selectedSpiceStr = (item['selectedSpice'] ?? '').toString();
 
@@ -113,7 +119,6 @@ class _CartPageState extends State<CartPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            // Kalkulasi harga sementara secara realtime saat modifier diubah
             int tempSubtotal = basePrice;
             for (var addon in currentAddons) {
               tempSubtotal += addonOpts[addon] ?? 0;
@@ -121,7 +126,7 @@ class _CartPageState extends State<CartPage> {
             int displayTotal = tempSubtotal * qty;
 
             final bool hasAnyOption =
-                spiceOpts.isNotEmpty || addonOpts.isNotEmpty || maxSpice > 0;
+                prefGroups.isNotEmpty || spiceOpts.isNotEmpty || addonOpts.isNotEmpty || maxSpice > 0;
 
             return Padding(
               padding: EdgeInsets.only(
@@ -140,13 +145,53 @@ class _CartPageState extends State<CartPage> {
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         child: Text(
-                          "Item ini belum punya opsi kustomisasi.",
+                          "This item has no customization options.",
                           style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                         ),
                       ),
 
-                    // PREFERENCES (Hot/Iced, sugar levels, spice variants…)
-                    if (spiceOpts.isNotEmpty) ...[
+                    // NEW: render every preference axis as its own chip group.
+                    ...prefGroups.entries.map((entry) {
+                      final groupLabel = entry.key;
+                      final opts = entry.value;
+                      if (opts.isEmpty) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(groupLabel.toUpperCase(),
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: primaryGreen)),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8, runSpacing: 8,
+                              children: opts.map<Widget>((opt) {
+                                final bool isSel = selectedPrefs[groupLabel] == opt;
+                                return ChoiceChip(
+                                  label: Text(opt,
+                                    style: TextStyle(
+                                      color: isSel ? Colors.white : Colors.black,
+                                      fontWeight: FontWeight.bold, fontSize: 12,
+                                    )),
+                                  selected: isSel,
+                                  selectedColor: primaryGreen,
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                    side: BorderSide(color: primaryGreen.withOpacity(0.4)),
+                                  ),
+                                  onSelected: (_) => setModalState(() {
+                                    selectedPrefs[groupLabel] = opt;
+                                  }),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+
+                    if (prefGroups.isEmpty && spiceOpts.isNotEmpty) ...[
                       Text("PREFERENCES", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: primaryGreen)),
                       const SizedBox(height: 8),
                       Wrap(
@@ -179,8 +224,7 @@ class _CartPageState extends State<CartPage> {
                       const SizedBox(height: 20),
                     ],
 
-                    // Numeric spice slider (legacy items)
-                    if (spiceOpts.isEmpty && maxSpice > 0) ...[
+                    if (prefGroups.isEmpty && spiceOpts.isEmpty && maxSpice > 0) ...[
                       Text("SPICE LEVEL", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: primaryGreen)),
                       const SizedBox(height: 8),
                       Slider(
@@ -225,17 +269,18 @@ class _CartPageState extends State<CartPage> {
 
                     const SizedBox(height: 24),
 
-                    // Tombol Apply
                     ElevatedButton(
                       onPressed: () {
-                        // Persist preferences back onto the cart item.
+                        // Persist every axis back onto the cart entry.
+                        if (prefGroups.isNotEmpty) {
+                          item['selectedPreferences'] = selectedPrefs;
+                        }
                         if (spiceOpts.isNotEmpty) {
                           item['selectedSpice'] = selectedSpiceStr;
                         } else if (maxSpice > 0) {
                           item['selectedSpice'] = currentSpiceLevel;
                         }
                         item['selectedAddons'] = currentAddons;
-                        // Refresh kalkulasi keranjang
                         CartManager.instance.updateQuantity(index, qty);
                         Navigator.pop(context);
                       },

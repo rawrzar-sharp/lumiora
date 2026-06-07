@@ -173,19 +173,68 @@ class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
           final date = created.split(' ').first;
           final time = created.split(' ').length > 1 ? created.split(' ')[1] : '';
           final List rawItems = (o['items'] is List) ? o['items'] as List : [];
+          // Keep the items as structured maps so the UI can render the friendly
+          // label PLUS the customer's selected preferences (Ice / Sugar / etc.),
+          // add-ons and notes underneath each line. Previously we flattened
+          // these into a single string and lost everything but the label.
           final items = rawItems.map((it) {
             if (it is Map) {
               final label = it['label']
                   ?? (it['item_name'] != null
                       ? '${it['quantity']}x ${it['item_name']}'
                       : it['name']?.toString() ?? '');
-              return label.toString();
+
+              // preferences_json is stored as a JSON column in MySQL; mysql2
+              // sometimes returns it parsed, sometimes as a string — handle both.
+              dynamic prefsRaw = it['preferences_json'];
+              if (prefsRaw is String && prefsRaw.isNotEmpty) {
+                try { prefsRaw = jsonDecode(prefsRaw); } catch (_) { prefsRaw = null; }
+              }
+              final Map<String, String> prefs = {};
+              if (prefsRaw is Map) {
+                prefsRaw.forEach((k, v) {
+                  if (v != null && v.toString().isNotEmpty) {
+                    prefs[k.toString()] = v.toString();
+                  }
+                });
+              }
+
+              dynamic addonsRaw = it['addons_json'];
+              if (addonsRaw is String && addonsRaw.isNotEmpty) {
+                try { addonsRaw = jsonDecode(addonsRaw); } catch (_) { addonsRaw = null; }
+              }
+              final List<String> addons = (addonsRaw is List)
+                  ? addonsRaw.map((a) => a.toString()).where((s) => s.isNotEmpty).toList()
+                  : <String>[];
+
+              return {
+                'label': label.toString(),
+                'preferences': prefs,
+                'addons': addons,
+                'notes': (it['notes'] ?? '').toString(),
+              };
             }
-            return it.toString();
-          }).cast<String>().toList();
-          final total = (o['total_amount'] ?? o['total']) != null
-              ? 'Rp ${(o['total_amount'] ?? o['total']).toString()}'
-              : '';
+            return {
+              'label': it.toString(),
+              'preferences': <String, String>{},
+              'addons': <String>[],
+              'notes': '',
+            };
+          }).toList();
+          final totalRaw = (o['total_amount'] ?? o['total']);
+          String total = '';
+          if (totalRaw != null) {
+            // Format as "Rp 65.340" (no decimals, dot thousand separator) so it
+            // matches the rest of the app instead of showing the raw DB value
+            // "Rp 65340.00" that confuses customers.
+            final asNum = num.tryParse(totalRaw.toString()) ?? 0;
+            final whole = asNum.round();
+            final withDots = whole.toString().replaceAllMapped(
+              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+              (m) => '${m[1]}.',
+            );
+            total = 'Rp $withDots';
+          }
           // Map backend ENUM -> friendly user-facing label per the agreed flow:
           // pending / preparing → Ongoing
           // ready / delivered   → Done
@@ -210,6 +259,10 @@ class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
             'items': items,
             'total': total,
             'status': displayStatus,
+            // Keep the raw DB status so the UI can distinguish "ready" (waiting
+            // for pickup → show Take Your Order CTA) from "delivered" (fully
+            // handed over → only Reorder makes sense).
+            'raw_status': status,
           };
           if (active) {
             nowActive.add(entry);
@@ -353,27 +406,80 @@ class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 16),
           
-          // Items and Price Row
+          // Items + Price Row. Each item now renders its label PLUS the
+          // customer's selected preferences (Ice / Sugar / Bean / etc.),
+          // add-ons and any notes — so the On Going card actually tells you
+          // what's being made, not just "1x Vanilla Latte".
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Items List
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: List.generate(
-                    order['items'].length,
-                    (index) => Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        order['items'][index],
-                        style: TextStyle(color: textDark, fontSize: 14),
+                  children: List.generate(order['items'].length, (index) {
+                    final it = order['items'][index];
+                    final String label = it is Map ? (it['label']?.toString() ?? '') : it.toString();
+                    final Map prefs = (it is Map && it['preferences'] is Map) ? it['preferences'] as Map : const {};
+                    final List addons = (it is Map && it['addons'] is List) ? it['addons'] as List : const [];
+                    final String notes = (it is Map ? (it['notes']?.toString() ?? '') : '').trim();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: TextStyle(
+                              color: textDark,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (prefs.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                prefs.entries
+                                    .map((e) => '${e.key}: ${e.value}')
+                                    .join(' • '),
+                                style: TextStyle(
+                                  color: textDark.withOpacity(0.65),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          if (addons.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                'Add-ons: ${addons.join(', ')}',
+                                style: TextStyle(
+                                  color: primaryGreen,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          if (notes.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                'Note: $notes',
+                                style: TextStyle(
+                                  color: textDark.withOpacity(0.6),
+                                  fontSize: 12,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                  ),
+                    );
+                  }),
                 ),
               ),
+              const SizedBox(width: 12),
               // Total Price
               Text(
                 order['total'],
@@ -386,29 +492,66 @@ class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
             ],
           ),
           const SizedBox(height: 16),
-          
-          // Action Button (Track / Reorder)
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton(
-              onPressed: () {
-                // TODO: Add Track or Reorder logic
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryGreen,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+
+          // Action area:
+          //  - Completed + raw_status == "ready"   → show "Take Your Order"
+          //    pickup card next to Reorder so the customer knows the kitchen
+          //    has finished and they should come to the counter.
+          //  - Completed + "delivered" / other    → only Reorder.
+          //  - Active orders                      → no buttons (the live On
+          //    Going pill at the top already tells the story).
+          if (!isActive)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if ((order['raw_status'] ?? '').toString().toLowerCase() == 'ready')
+                  Container(
+                    margin: const EdgeInsets.only(right: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: primaryGreen.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: primaryGreen, width: 1.2),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.shopping_bag_outlined, color: primaryGreen, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Take Your Order',
+                          style: TextStyle(
+                            color: primaryGreen,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // Send the user back to the menu so they can rebuild the order.
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MenuPage()),
+                    );
+                  },
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Reorder', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryGreen,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                  ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-              ),
-              child: Text(
-                isActive ? 'Track' : 'Reorder',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
+              ],
             ),
-          ),
         ],
       ),
     );

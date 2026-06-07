@@ -106,13 +106,24 @@
           setState(() {
             _menu = list.map<Map<String, dynamic>>((item) {
               List<String> prefs = [];
+              Map<String, List<String>> prefGroups = {};
               Map<String, int> addons = {};
 
-              // customization options may be stored as JSON or missing
+              // customization options may be stored as JSON or missing.
+              // The new schema exposes `preference_groups`, a map of
+              // "Ice Level" → [...], "Sugar Level" → [...] etc.
+              // We still parse the legacy `preferences` array as a fallback.
               final customRaw = item['customization_options'] ?? item['custom_options'] ?? item['custom'] ?? null;
               if (customRaw != null) {
                 try {
                   final parsed = customRaw is String ? json.decode(customRaw) : customRaw;
+                  if (parsed['preference_groups'] != null && parsed['preference_groups'] is Map) {
+                    (parsed['preference_groups'] as Map).forEach((k, v) {
+                      if (v is List) {
+                        prefGroups[k.toString()] = List<String>.from(v.map((x) => x.toString()));
+                      }
+                    });
+                  }
                   if (parsed['preferences'] != null) {
                     prefs = List<String>.from(parsed['preferences']);
                   }
@@ -123,6 +134,13 @@
                   }
                 } catch (_) {}
               }
+
+              // Default the first option of each preference group so the
+              // bottom-sheet has something selected when it opens.
+              final Map<String, String> defaultPrefs = {};
+              prefGroups.forEach((k, v) {
+                if (v.isNotEmpty) defaultPrefs[k] = v[0];
+              });
 
               // Support both 'name' and legacy 'item_name'
               final rawName = item['name'] ?? item['item_name'] ?? '';
@@ -140,6 +158,8 @@
                 'img': _resolveImage(rawName, rawImg, rawCategoryId),
                 'selectedSpice': prefs.isNotEmpty ? prefs[0] : '',
                 'spiceOptions': prefs,
+                'preferenceGroups': prefGroups,
+                'selectedPreferences': defaultPrefs,
                 'selectedAddons': <String>[],
                 'addonOptions': addons,
               };
@@ -783,8 +803,9 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
                   // 2. If logged in, proceed normally
                   final List spiceOpts = item['spiceOptions'] ?? [];
                   final Map addonOpts = item['addonOptions'] ?? {};
+                  final Map prefGroups = item['preferenceGroups'] ?? {};
 
-                  if (spiceOpts.isNotEmpty || addonOpts.isNotEmpty) {
+                  if (spiceOpts.isNotEmpty || addonOpts.isNotEmpty || prefGroups.isNotEmpty) {
                     _showModifierSheet(context, item);
                   } else {
                     CartManager.instance.addItem(item);
@@ -800,6 +821,11 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
     void _showModifierSheet(BuildContext context, Map<String, dynamic> originalItem) {
       final Map<String, dynamic> tempItem = Map<String, dynamic>.from(originalItem);
       tempItem['selectedAddons'] = List<String>.from(originalItem['selectedAddons'] ?? []);
+      // Deep-clone the multi-axis preferences map so changes in the sheet are
+      // discardable until the user taps Add to cart.
+      tempItem['selectedPreferences'] = Map<String, String>.from(
+        (originalItem['selectedPreferences'] as Map?)?.cast<String, String>() ?? <String, String>{},
+      );
 
       showModalBottomSheet(
         context: context,
@@ -810,6 +836,9 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
             builder: (BuildContext context, StateSetter setModalState) {
               final List<String> spiceOpts = List<String>.from(tempItem['spiceOptions'] ?? []);
               final Map<String, int> addonOpts = Map<String, int>.from(tempItem['addonOptions'] ?? {});
+              final Map<String, List<String>> prefGroups = (tempItem['preferenceGroups'] as Map?)
+                  ?.map((k, v) => MapEntry(k.toString(), List<String>.from((v as List).map((x) => x.toString())))) ?? {};
+              final Map<String, String> selectedPrefs = Map<String, String>.from(tempItem['selectedPreferences'] ?? {});
               final List<String> itemSelectedAddons = List<String>.from(tempItem['selectedAddons'] ?? []);
 
               return Container(
@@ -817,8 +846,12 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
                   color: Color(0xFFF4F1E1),
                   borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
                 ),
-                padding: const EdgeInsets.all(20),
-                child: Column(
+                padding: EdgeInsets.only(
+                  left: 20, right: 20, top: 20,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -827,8 +860,53 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
                     Text(tempItem['name'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
                     Text("Customize your item", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                     const SizedBox(height: 16),
-                    
-                    if (spiceOpts.isNotEmpty) ...[
+
+                    // NEW: render every preference axis (Ice Level / Sugar
+                    // Level / Coffee Bean / Temperature / Spice Level / Style)
+                    // as its own chip row. This is the customer-friendly view
+                    // the round-4 ticket asked for.
+                    ...prefGroups.entries.map((entry) {
+                      final groupLabel = entry.key;
+                      final opts = entry.value;
+                      if (opts.isEmpty) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(groupLabel.toUpperCase(),
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: primaryGreen)),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8, runSpacing: 8,
+                              children: opts.map<Widget>((opt) {
+                                final bool isSel = selectedPrefs[groupLabel] == opt;
+                                return ChoiceChip(
+                                  label: Text(opt,
+                                    style: TextStyle(
+                                      color: isSel ? Colors.white : Colors.black,
+                                      fontWeight: FontWeight.bold, fontSize: 12,
+                                    )),
+                                  selected: isSel,
+                                  selectedColor: primaryGreen,
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                    side: BorderSide(color: primaryGreen.withOpacity(0.4)),
+                                  ),
+                                  onSelected: (_) => setModalState(() {
+                                    selectedPrefs[groupLabel] = opt;
+                                    tempItem['selectedPreferences'] = selectedPrefs;
+                                  }),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+
+                    if (prefGroups.isEmpty && spiceOpts.isNotEmpty) ...[
                       Text("PREFERENCES", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: primaryGreen)),
                       const SizedBox(height: 8),
                       Wrap(
@@ -889,6 +967,7 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
                       ),
                     ),    
                   ],
+                  ),
                 ),
               );
             },

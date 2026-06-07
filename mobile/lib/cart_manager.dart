@@ -31,13 +31,16 @@ class CartManager extends ChangeNotifier {
     return total;
   }
 
-  // Menambahkan item baru atau menambah quantity jika item identik sudah ada
+  // Menambahkan item baru atau menambah quantity jika item identik sudah ada.
+  // Two cart entries are only merged when ID + ALL preference axes
+  // (Ice Level / Sugar Level / Coffee Bean / …) + add-ons match.
   void addItem(Map<String, dynamic> menuItem) {
     final idx = _items.indexWhere((e) =>
         e['id'] == menuItem['id'] &&
         e['selectedSpice'] == menuItem['selectedSpice'] &&
+        _mapEq(e['selectedPreferences'], menuItem['selectedPreferences']) &&
         _listEq(e['selectedAddons'], menuItem['selectedAddons']));
-        
+
     if (idx >= 0) {
       _items[idx]['quantity'] = (_items[idx]['quantity'] as int) + 1;
     } else {
@@ -88,6 +91,18 @@ class CartManager extends ChangeNotifier {
     if (a.length != b.length) return false;
     for (int i = 0; i < a.length; i++) {
       if (!b.contains(a[i])) return false;
+    }
+    return true;
+  }
+
+  // Helper: compare two preference maps key-by-key (case-sensitive).
+  bool _mapEq(dynamic a, dynamic b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return (a is Map ? a.isEmpty : true) && (b is Map ? b.isEmpty : true);
+    if (a is! Map || b is! Map) return false;
+    if (a.length != b.length) return false;
+    for (final k in a.keys) {
+      if (a[k]?.toString() != b[k]?.toString()) return false;
     }
     return true;
   }
