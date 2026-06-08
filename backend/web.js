@@ -14,11 +14,11 @@ const PORT = process.env.PORT || 3000;
 // Set CORS_ORIGINS as a comma-separated env var to extend the list.
 const DEFAULT_CORS_ORIGINS = [
   'http://43.133.144.212:1234',   // production API host (Swagger / direct hits)
-  'http://104.197.208.136',       // GCP-hosted CMS (HTTP)
-  'http://104.197.208.136:80',
-  'http://104.197.208.136:3000',
-  'http://104.197.208.136:1234',
-  'https://104.197.208.136',
+  'http://34.9.249.94',       // GCP-hosted CMS (HTTP)
+  'http://34.9.249.94:80',
+  'http://34.9.249.94:3000',
+  'http://34.9.249.94:1234',
+  'https://34.9.249.94',      // GCP-hosted CMS (HTTPS)
   'http://localhost:3000',
   'http://localhost:1234',
 ];

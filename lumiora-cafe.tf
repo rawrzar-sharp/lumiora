@@ -44,7 +44,7 @@ resource "google_compute_firewall" "web_firewall" {
 resource "google_compute_instance" "game_vm" {
   name         = "lumioraapp"
   machine_type = "e2-standard-4" 
-  zone         = "us-central1-c"   
+  zone         = "us-central1-a"   
 
   tags = ["web-server"]
 

@@ -19,7 +19,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
   final Color lightCream = const Color(0xFFEBE5D9);
   
   // Backend URL for fetching item images
-  String get baseUrl => kIsWeb ? 'http://104.197.208.136:3000' : 'http://10.0.2.2:3000';
+  String get baseUrl => kIsWeb ? 'http://34.9.249.94:3000' : 'http://10.0.2.2:3000';
   final TextEditingController _notesController = TextEditingController();
 
   List<Map<String, dynamic>> get _cartItems => CartManager.instance.items;
