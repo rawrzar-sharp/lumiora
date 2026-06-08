@@ -12,8 +12,10 @@ router.get('/ingredients', authenticate, cms.getIngredients);
 router.get('/ingredients/low', authenticate, cms.getLowIngredients);
 router.get('/menu-availability', authenticate, cms.getMenuAvailability);
 router.patch('/ingredients/stock', authenticate, adminOnly, cms.updateIngredientStock);
+router.post('/ingredients', authenticate, adminOnly, cms.createIngredient);
 
 // Recipes
+router.get('/recipes/full', authenticate, cms.getRecipesFull);
 router.get('/recipes', authenticate, cms.getRecipes);
 router.get('/recipes/menu/:id', authenticate, cms.getRecipeByMenu);
 
