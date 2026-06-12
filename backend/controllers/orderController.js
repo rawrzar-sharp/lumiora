@@ -215,9 +215,6 @@ exports.createOrder = async (req, res) => {
           ]
         );
       } catch (err) {
-        // Defensive fallback: if the startup migration failed and the new
-        // columns don't exist yet (operator's DB never had them), retry the
-        // INSERT with the legacy column set so checkout still succeeds.
         if (err && err.code === 'ER_BAD_FIELD_ERROR') {
           await conn.query(
             `INSERT INTO order_items (order_id, menu_item_id, quantity, price_at_sale)
@@ -244,8 +241,11 @@ exports.createOrder = async (req, res) => {
     });
   } catch (error) {
     try { await conn.rollback(); } catch (_) { /* nothing to rollback */ }
-    console.error('Create Order Error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Create Order Error (Internal):', error);
+    res.status(500).json({ 
+      success: false, 
+      error: "Connection lost or server busy. Please try again!" 
+    });
   } finally {
     conn.release();
   }
