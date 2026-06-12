@@ -6,13 +6,26 @@
 exports.getAllMenu = async (req, res, next) => {
   try {
     const [menu] = await req.db.query(
-      `SELECT m.*, m.is_Available AS is_available, c.name as category_name, mi.customization_options
+      `SELECT m.*, m.is_Available AS is_available, c.name as category_name, mi.customization_options,
+              (SELECT MIN(FLOOR(i.stock_quantity / r.quantity_required))
+               FROM recipes r
+               JOIN ingredients i ON r.ingredient_id = i.id
+               WHERE r.menu_item_id = m.id) AS available_portions
        FROM menu m
        LEFT JOIN category c ON m.category_id = c.id
        LEFT JOIN menu_items mi ON mi.id = m.id
        ORDER BY m.id`
     );
-    res.json({ success: true, count: menu.length, data: menu });
+
+    // Timpa nilai stock manual dengan kalkulasi porsi bahan baku (jika resepnya ada)
+    const finalMenu = menu.map(item => {
+      if (item.available_portions !== null) {
+        item.stock = item.available_portions <= 0 ? 0 : item.available_portions;
+      }
+      return item;
+    });
+
+    res.json({ success: true, count: finalMenu.length, data: finalMenu });
   } catch (error) {
     next(error);
   }
@@ -21,7 +34,11 @@ exports.getAllMenu = async (req, res, next) => {
 exports.getMenuById = async (req, res, next) => {
   try {
     const [menu] = await req.db.query(
-      `SELECT m.*, m.is_Available AS is_available, c.name as category_name, mi.customization_options
+      `SELECT m.*, m.is_Available AS is_available, c.name as category_name, mi.customization_options,
+              (SELECT MIN(FLOOR(i.stock_quantity / r.quantity_required))
+               FROM recipes r
+               JOIN ingredients i ON r.ingredient_id = i.id
+               WHERE r.menu_item_id = m.id) AS available_portions
        FROM menu m
        LEFT JOIN category c ON m.category_id = c.id
        LEFT JOIN menu_items mi ON mi.id = m.id
@@ -31,7 +48,13 @@ exports.getMenuById = async (req, res, next) => {
     if (menu.length === 0) {
       return res.status(404).json({ success: false, message: 'Menu item not found' });
     }
-    res.json({ success: true, data: menu[0] });
+
+    const item = menu[0];
+    if (item.available_portions !== null) {
+      item.stock = item.available_portions <= 0 ? 0 : item.available_portions;
+    }
+
+    res.json({ success: true, data: item });
   } catch (error) {
     next(error);
   }
@@ -40,7 +63,11 @@ exports.getMenuById = async (req, res, next) => {
 exports.getMenuByCategory = async (req, res, next) => {
   try {
     const [menu] = await req.db.query(
-      `SELECT m.*, m.is_Available AS is_available, c.name as category_name, mi.customization_options
+      `SELECT m.*, m.is_Available AS is_available, c.name as category_name, mi.customization_options,
+              (SELECT MIN(FLOOR(i.stock_quantity / r.quantity_required))
+               FROM recipes r
+               JOIN ingredients i ON r.ingredient_id = i.id
+               WHERE r.menu_item_id = m.id) AS available_portions
        FROM menu m
        LEFT JOIN category c ON m.category_id = c.id
        LEFT JOIN menu_items mi ON mi.id = m.id
@@ -48,7 +75,15 @@ exports.getMenuByCategory = async (req, res, next) => {
        ORDER BY m.id`,
       [req.params.categoryId]
     );
-    res.json({ success: true, count: menu.length, data: menu });
+
+    const finalMenu = menu.map(item => {
+      if (item.available_portions !== null) {
+        item.stock = item.available_portions <= 0 ? 0 : item.available_portions;
+      }
+      return item;
+    });
+
+    res.json({ success: true, count: finalMenu.length, data: finalMenu });
   } catch (error) {
     next(error);
   }
