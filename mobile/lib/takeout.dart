@@ -22,6 +22,10 @@ class _TakeoutPageState extends State<TakeoutPage> {
   String get baseUrl => kIsWeb ? 'http://34.9.249.94:3000' : 'http://10.0.2.2:3000';
   final TextEditingController _notesController = TextEditingController();
 
+  String _selectedOrderType = 'Takeaway';
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
+
   List<Map<String, dynamic>> get _cartItems => CartManager.instance.items;
 
   @override
@@ -66,6 +70,61 @@ class _TakeoutPageState extends State<TakeoutPage> {
     return 'Rp ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
   }
 
+  // --- ADDED: DATE & TIME PICKER FUNCTION ---
+  Future<void> _pickDateTime() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 7)),
+    );
+    if (date != null) {
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
+      if (time != null) {
+        setState(() {
+          _selectedDate = date;
+          _selectedTime = time;
+        });
+      }
+    }
+  }
+
+  // --- ADDED: TAB BUILDER FUNCTION ---
+  Widget _buildTopTabs() => Row(
+    children: [
+      Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _selectedOrderType = 'Takeaway'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: _selectedOrderType == 'Takeaway' ? primaryGreen : lightCream,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(child: Text("Takeaway", style: TextStyle(fontWeight: FontWeight.bold, color: _selectedOrderType == 'Takeaway' ? Colors.white : Colors.grey))),
+          ),
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _selectedOrderType = 'Delivery'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: _selectedOrderType == 'Delivery' ? primaryGreen : lightCream,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(child: Text("Delivery", style: TextStyle(fontWeight: FontWeight.bold, color: _selectedOrderType == 'Delivery' ? Colors.white : Colors.grey))),
+          ),
+        ),
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,9 +146,8 @@ class _TakeoutPageState extends State<TakeoutPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                
                 // -------------------------------------------------------------
-                // ADDED: LOCATION & DISTANCE COMPONENT
+                // LOCATION & DISTANCE COMPONENT
                 // -------------------------------------------------------------
                 Container(
                   width: double.infinity,
@@ -112,7 +170,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              "Distance: 1.2 km (Est. 10-15 mins)", // Translated to English
+                              "Distance: 1.2 km (Est. 10-15 mins)",
                               style: TextStyle(color: darkGrey, fontSize: 12, fontWeight: FontWeight.w500),
                             ),
                           ],
@@ -122,14 +180,34 @@ class _TakeoutPageState extends State<TakeoutPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
+
                 // -------------------------------------------------------------
+                // ORDER TYPE & TIME PICKER
+                // -------------------------------------------------------------
+                _buildSectionHeader("ORDER PREFERENCE"),
+                _buildTopTabs(),
+                const SizedBox(height: 16),
+                InkWell(
+                  onTap: _pickDateTime,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_selectedDate == null ? "Select Date & Time" : "${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year} - ${_selectedTime!.format(context)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Icon(Icons.calendar_month, color: primaryGreen),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
 
                 _buildSectionHeader("ORDER ITEMS"),
                 _buildCartItemList(),
                 
                 const SizedBox(height: 16),
                 
-                // Add Menu Button
                 Center(
                   child: OutlinedButton.icon(
                     onPressed: () {
@@ -144,22 +222,16 @@ class _TakeoutPageState extends State<TakeoutPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 24),
 
-                // Total & Taxes
                 _buildSectionHeader("SUMMARY & TAXES"),
                 _buildSummaryCard(),
-                
                 const SizedBox(height: 24),
                 
-                // Stamps
                 _buildSectionHeader("MEMBER REWARDS"),
                 _buildStampSection(),
-                
                 const SizedBox(height: 24),
 
-                // Customer Info & Notes
                 _buildSectionHeader("CUSTOMER INFO & NOTES"),
                 _buildContactField(),
                 const SizedBox(height: 12),
@@ -204,21 +276,22 @@ class _TakeoutPageState extends State<TakeoutPage> {
         }
         
         int qty = item['quantity'] ?? 1;
-        int totalItemCost = unitCost * qty; // Total price multiplies dynamically
+        int totalItemCost = unitCost * qty;
 
-        // Construct Modifiers Text
+        // --- FIX: MENGGUNAKAN PREFERENCES DRINK (BUKAN SPICE LEVEL) ---
         List<String> mods = [];
-        if (item['selectedSpice'] != null && item['selectedSpice'] != 'Normal') {
-          mods.add("Spice Level: ${item['selectedSpice']}");
-        }
+        final Map<String, dynamic> selectedPrefs = Map<String, dynamic>.from((item['selectedPreferences'] as Map?) ?? {});
+        selectedPrefs.forEach((key, value) {
+          mods.add("$key: $value");
+        });
+        
         if (currentAddons.isNotEmpty) {
           mods.add("Add-ons: ${currentAddons.join(', ')}");
         }
         String modText = mods.join(' | ');
+        // -------------------------------------------------------------
 
-        // -------------------------------------------------------------
-        // ADDED: ROBUST IMAGE LOGIC FIX
-        // -------------------------------------------------------------
+        // ROBUST IMAGE LOGIC FIX
         String rawImg = (item['image_url'] ?? item['img'] ?? '').toString();
         String imageUrl = '';
         bool isAsset = false;
@@ -233,26 +306,24 @@ class _TakeoutPageState extends State<TakeoutPage> {
             imageUrl = rawImg.startsWith('/') ? '$baseUrl$rawImg' : '$baseUrl/$rawImg';
           }
         }
-        // -------------------------------------------------------------
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: imageUrl.isNotEmpty
                     ? (isAsset 
                         ? Image.asset(
-                            imageUrl,
-                            width: 60, height: 60, fit: BoxFit.cover,
+                            imageUrl, width: 60, height: 60, fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) => Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.broken_image, color: Colors.grey)),
                           )
                         : Image.network(
-                            imageUrl,
-                            width: 60, height: 60, fit: BoxFit.cover,
+                            imageUrl, width: 60, height: 60, fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) => Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.broken_image, color: Colors.grey)),
                           ))
                     : Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.fastfood, color: Colors.grey)),
@@ -263,10 +334,27 @@ class _TakeoutPageState extends State<TakeoutPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(item['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                    
+                    // --- FIX: KATEGORI DENGAN STYLE BADGE SEPERTI HISTORY ---
+                    if (item['category'] != null && item['category'].toString().isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4, bottom: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: lightGreenCard, 
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          item['category'].toString().toUpperCase(), 
+                          style: TextStyle(fontSize: 9, color: primaryGreen, fontWeight: FontWeight.w900, letterSpacing: 0.5)
+                        ),
+                      ),
+                    
+                    // Detail Ice Level, Sugar Level, dll.
                     if (modText.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 4, bottom: 4),
-                        child: Text(modText, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                        padding: const EdgeInsets.only(top: 2, bottom: 4),
+                        child: Text(modText, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
                       ),
                     const SizedBox(height: 4),
                     Text(_formatRp(totalItemCost), style: TextStyle(fontWeight: FontWeight.bold, color: textDark)),
@@ -341,13 +429,11 @@ class _TakeoutPageState extends State<TakeoutPage> {
           ],
         ),
         const SizedBox(height: 14),
-        // Row 1: stamps 1-5
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: List.generate(5, (i) => _buildStampSlot(i)),
         ),
         const SizedBox(height: 8),
-        // Row 2: stamps 6-10
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: List.generate(5, (i) => _buildStampSlot(i + 5)),
@@ -404,7 +490,7 @@ class _TakeoutPageState extends State<TakeoutPage> {
         onPressed: () {
           if (_cartItems.isEmpty) return;
           Navigator.push(context, MaterialPageRoute(
-            builder: (context) => PaymentPage(orderType: 'Takeout', totalAmount: _finalTotal, stampsEarned: _stampsEarned),
+            builder: (context) => PaymentPage(orderType: _selectedOrderType, totalAmount: _finalTotal, stampsEarned: _stampsEarned),
           ));
         },
         child: const Text("Proceed to Payment", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),

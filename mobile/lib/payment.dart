@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:dotted_border/dotted_border.dart';
 
 import 'cart_manager.dart';
 import 'main.dart';
@@ -45,24 +47,26 @@ class _PaymentPageState extends State<PaymentPage> {
   
   late String _orderId;
 
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    _bankIdController.dispose();
+    super.dispose();
+  }
+
   // Variabel Image Picker & Loading State
   File? _imageFile;
   Uint8List? _webImageBytes;
   final ImagePicker _picker = ImagePicker();
   
-  // 🔥 FIX: Tambahkan variabel loading di sini agar tidak merah
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _generateRandomOrderId();
-  }
-
-  @override
-  void dispose() {
-    _bankIdController.dispose();
-    super.dispose();
   }
 
   void _generateRandomOrderId() {
@@ -91,7 +95,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
   String _formatRp(int amount) => 'Rp ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
 
-  // 🔥 FIX 1: Fungsi untuk menyimpan profil (Memperbaiki error _ensureCustomer)
   Future<void> _saveUserData(Map<String, dynamic> data) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -101,7 +104,6 @@ class _PaymentPageState extends State<PaymentPage> {
     }
   }
 
-  // 🔥 FIX 2: Fungsi khusus untuk update stamp lokal setelah bayar
   Future<void> _updateLocalStamps(int stampsEarned) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -154,7 +156,6 @@ class _PaymentPageState extends State<PaymentPage> {
           final id = rawId is int ? rawId : int.tryParse(rawId.toString());
           if (id != null) {
             GlobalState.customerId = id;
-            // Memanggil fungsi fix _saveUserData
             await _saveUserData({'name': name, 'id': id, 'vouchers': GlobalState.vouchersCount, 'loyalty_stamps': GlobalState.currentCardStamps});
             return id;
           }
@@ -168,9 +169,7 @@ class _PaymentPageState extends State<PaymentPage> {
     return 1;
   }
 
-// 🔥 FIX 3: Fungsi Pembayaran Gabungan (Satu Kode API)
   Future<void> _processPayment() async {
-    // 1. Validasi Digital Bank
     if (_selectedPaymentMethod == 'Digital Bank' && _bankIdController.text.length != 16) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('⚠️ Please enter a valid 16-digit Bank ID!'), backgroundColor: Colors.red),
@@ -178,7 +177,6 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
 
-    // 2. Validasi Upload Gambar
     if (_selectedPaymentMethod != 'Pay at Cashier' && _imageFile == null && _webImageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('⚠️ Please upload your payment proof image!'), backgroundColor: Colors.red),
@@ -189,11 +187,9 @@ class _PaymentPageState extends State<PaymentPage> {
     setState(() => _isLoading = true);
 
     try {
-      // --- 🟢 UPDATE: Ambil ID langsung dari GlobalState 🟢 ---
       int? finalCustomerId = GlobalState.customerId;
 
       if (finalCustomerId == null) {
-        // Jika karena suatu hal bernilai null, jalankan backup plan memastikan customer
         finalCustomerId = await _ensureCustomer();
       }
 
@@ -201,7 +197,6 @@ class _PaymentPageState extends State<PaymentPage> {
         throw Exception("ID Pelanggan tidak ditemukan. Silakan login ulang.");
       }
 
-      // 4. Kirim Data ke API (pastikan customer_id bertipe integer langsung)
       final response = await http.post(
         Uri.parse('${AppConfig.backendUrl}/api/orders'),
         headers: {'Content-Type': 'application/json'},
@@ -215,22 +210,12 @@ class _PaymentPageState extends State<PaymentPage> {
         }),
       );
 
-      // 5. Sukses
       if (response.statusCode == 201 || response.statusCode == 200) {
-        // Tambahkan stamp lokal
+        await _audioPlayer.play(AssetSource('audio/cha-ching.mp3'));
         await _updateLocalStamps(widget.stampsEarned);
 
-        // --- 🟢 UPDATE: Ubah dari .clear() menjadi .clearCart() 🟢 ---
-        CartManager.instance.clearCart(); 
-
         if (!mounted) return;
-        
-        // Pindah otomatis ke History
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HistoryPage()),
-          (route) => false,
-        );
+        _showSuccessDialog(_orderId);
       } else {
         throw Exception('Server error: ${response.statusCode}');
       }
@@ -245,6 +230,140 @@ class _PaymentPageState extends State<PaymentPage> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _showSuccessDialog(String orderNumber) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(20),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: const Color(0xFFF4F1E1), borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check_circle, color: Color(0xFF7B8C2A), size: 60),
+                const SizedBox(height: 12),
+                const Text("Payment Successful!", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF2C3028))),
+                Text("Order #$orderNumber", style: const TextStyle(color: Colors.grey)),
+                const SizedBox(height: 20),
+
+                DottedBorder(
+                  color: Colors.grey.shade400,
+                  strokeWidth: 2,
+                  dashPattern: const [6, 4],
+                  borderType: BorderType.RRect,
+                  radius: const Radius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                    child: Column(
+                      children: [
+                        const Text("LUMIORA CAFE", style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFF4A4D4A))),
+                        const Divider(height: 24),
+                        
+                        ...CartManager.instance.items.map((item) {
+                          int unitCost = (item['basePrice'] as int?) ?? 0;
+                          final Map<String, int> addonOpts = Map<String, int>.from((item['addonOptions'] as Map?) ?? {});
+                          final List<String> currentAddons = List<String>.from((item['selectedAddons'] as List?) ?? []);
+                          for (var addon in currentAddons) {
+                            unitCost += addonOpts[addon] ?? 0;
+                          }
+                          int itemTotalCost = unitCost * (item['quantity'] as int? ?? 1);
+
+                          // --- FIX: MENGAMBIL PREFERENCES DRINK (BUKAN SPICE LEVEL) ---
+                          List<String> mods = [];
+                          final Map<String, dynamic> selectedPrefs = Map<String, dynamic>.from((item['selectedPreferences'] as Map?) ?? {});
+                          selectedPrefs.forEach((key, value) {
+                            mods.add("$key: $value");
+                          });
+                          if (currentAddons.isNotEmpty) {
+                            mods.add("Add-ons: ${currentAddons.join(', ')}");
+                          }
+                          String modText = mods.join(' | ');
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text("${item['quantity']}x ${item['name']}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                      
+                                      // --- FIX: KATEGORI DENGAN STYLE BADGE SEPERTI HISTORY ---
+                                      if (item['category'] != null && item['category'].toString().isNotEmpty)
+                                        Container(
+                                          margin: const EdgeInsets.only(top: 4, bottom: 2),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFDCE2B9), 
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            item['category'].toString().toUpperCase(), 
+                                            style: const TextStyle(fontSize: 8, color: Color(0xFF7B8C2A), fontWeight: FontWeight.w900, letterSpacing: 0.5)
+                                          ),
+                                        ),
+                                        
+                                      // Detail Ice Level, Sugar Level, dll. di struk
+                                      if (modText.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 2),
+                                          child: Text(modText, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Text(_formatRp(itemTotalCost), style: const TextStyle(fontSize: 12)),
+                              ],
+                            ),
+                          );
+                        }),
+                        
+                        const Divider(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                            Text(_formatRp(widget.totalAmount), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF7B8C2A))),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    CartManager.instance.clearCart();
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HistoryPage()),
+                      (route) => false,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7B8C2A),
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text("Check Order History", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    );
   }
 
   @override
@@ -262,7 +381,6 @@ class _PaymentPageState extends State<PaymentPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Order Summary Card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(color: primaryGreen, borderRadius: BorderRadius.circular(16)),
@@ -288,7 +406,6 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
             const SizedBox(height: 24),
 
-            // Dropdown Payment Method
             const Text("Select Payment Method", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const SizedBox(height: 12),
             Container(
@@ -321,7 +438,6 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
             const SizedBox(height: 24),
 
-            // Bank Input khusus Digital Bank
             if (_selectedPaymentMethod == 'Digital Bank') ...[
               const Text("Bank ID (16 Digits)", style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
@@ -341,7 +457,6 @@ class _PaymentPageState extends State<PaymentPage> {
               const SizedBox(height: 24),
             ],
 
-            // Upload & Scan (Muncul kecuali Pay at Cashier)
             if (_selectedPaymentMethod != 'Pay at Cashier') ...[
               Center(
                 child: Column(

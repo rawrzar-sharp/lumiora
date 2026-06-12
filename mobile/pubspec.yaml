@@ -36,6 +36,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   image_picker: ^1.2.2
   get: ^4.7.3
+  
+  # --- PACKAGE BARU FASE 2 ---
+  audioplayers: ^6.0.0
+  dotted_border: ^2.1.0
 
 dev_dependencies:
   flutter_test:
@@ -58,9 +62,11 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  
+  # --- PENDAFTARAN FOLDER ASSET BARU ---
   assets:
     - assets/images/
-  
+    - assets/audio/
 
 # atau cukup daftarkan foldernya saja:
     # - assets/images/
