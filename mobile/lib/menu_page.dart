@@ -104,7 +104,7 @@
               ? List.from(data['menu'])
               : (data['data'] is List) ? List.from(data['data']) : [];
           setState(() {
-            _menu = list.map<Map<String, dynamic>>((item) {
+            final mappedList = list.map<Map<String, dynamic>>((item) {
               List<String> prefs = [];
               Map<String, List<String>> prefGroups = {};
               Map<String, int> addons = {};
@@ -156,6 +156,8 @@
                 'category': _catName(rawCategoryId),
                 'basePrice': double.tryParse(rawPrice.toString())?.round() ?? 0,
                 'img': _resolveImage(rawName, rawImg, rawCategoryId),
+                'is_available': item['is_available'] ?? 1,
+                'stock': item['stock'] ?? 1,
                 'selectedSpice': prefs.isNotEmpty ? prefs[0] : '',
                 'spiceOptions': prefs,
                 'preferenceGroups': prefGroups,
@@ -165,6 +167,9 @@
               };
             }).toList();
             
+            _menu = mappedList.where((item) => 
+              item['is_available'] == 1 || item['is_available'] == true
+            ).toList();
             // Generate GlobalKeys for each unique category
             for (var cat in _categories) {
               if (cat != 'All') _categoryKeys[cat] = GlobalKey();
@@ -738,6 +743,8 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
                 ? '$baseUrl/${imagePath.replaceFirst('assets/', 'assets/')}'
                 : '$baseUrl$imagePath';
 
+        final bool isOutOfStock = (item['stock'] != null && item['stock'] <= 0);
+
         return Container(
           margin: const EdgeInsets.only(bottom: 14),
           padding: const EdgeInsets.all(12),
@@ -753,6 +760,8 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
+                child: Opacity(
+                  opacity: isOutOfStock ? 0.5 : 1.0,
                 child: Image.network(
                   resolvedImagePath,
                   width: 64,
@@ -761,6 +770,7 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
                   errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
                 ),
               ),
+            ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -775,13 +785,26 @@ String _resolveImage(dynamic name, dynamic image_url, dynamic categoryId) {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 8),
-                    Text(_formatRp(item['basePrice']), style: TextStyle(fontWeight: FontWeight.w800, color: primaryGreen, fontSize: 13)),
+                    // Tampilkan Harga dan Label Habis
+                    Row(
+                      children: [
+                        Text(_formatRp(item['basePrice']), style: TextStyle(fontWeight: FontWeight.w800, color: isOutOfStock ? Colors.grey : primaryGreen, fontSize: 13)),
+                        if (isOutOfStock) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.red.shade200)),
+                            child: const Text('HABIS', style: TextStyle(color: Colors.red, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                          ),
+                        ]
+                      ],
+                    ),
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.add, color: primaryGreen, size: 28), 
-                onPressed: () {
+             IconButton(
+                icon: Icon(Icons.add_circle, color: isOutOfStock ? Colors.grey.shade300 : primaryGreen, size: 32), 
+                onPressed: isOutOfStock ? null : () {
                   if (GlobalState.userName == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
