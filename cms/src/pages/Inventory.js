@@ -25,8 +25,6 @@ const stepBtn = (variant) => {
   return { ...base, background: 'white', color: palette.ink };
 };
 
-// Slide tab switcher: the active tab fills with primary green; the inactive
-// one stays transparent so it reads as a single pill with one side filled.
 const tabBtn = (active) => ({
   padding: '10px 22px',
   borderRadius: 999,
@@ -44,7 +42,8 @@ const pill = (tone) => {
     ok:             { background: '#E7F3D9', color: palette.moss,  label: 'Available'       },
     low_ingredient: { background: '#FFF1D5', color: '#A06A1F',     label: 'Low ingredient'  },
     hidden:         { background: '#FEE',    color: palette.rust,  label: 'Hidden'          },
-    low:            { background: '#FEE',    color: palette.rust,  label: 'Low'             },
+    low:            { background: '#FFF1D5', color: '#A06A1F',     label: 'Low'             },
+    empty:          { background: '#FEE',    color: palette.rust,  label: 'Empty! Restock'  }, // <--- TAMBAHKAN INI
   };
   const m = map[tone] || map.ok;
   return { display: 'inline-block', padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 800, background: m.background, color: m.color };
@@ -230,13 +229,19 @@ export default function InventoryPage({ apiUrl, token, userRole }) {
             </thead>
             <tbody>
               {ingredients.map((it) => {
-                const isLow = Number(it.stock_quantity) <= Number(it.low_stock_threshold);
+                const stockQty = Number(it.stock_quantity);
+                const isEmpty = stockQty === 0;
+                const isLow = stockQty <= Number(it.low_stock_threshold) && !isEmpty;
                 return (
                   <tr key={it.id} data-testid={`inv-row-${it.id}`} style={{ borderTop: `1px solid ${palette.parchment}` }}>
                     <td style={{ padding: '10px 6px', fontWeight: 600, color: palette.ink }}>{it.name}</td>
-                    <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{Number(it.stock_quantity).toLocaleString('id-ID')} {it.unit || ''}</td>
+                    <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700 }}>{stockQty.toLocaleString('id-ID')} {it.unit || ''}</td>
                     <td style={{ padding: '10px 6px', textAlign: 'right', color: '#666' }}>{Number(it.low_stock_threshold).toLocaleString('id-ID')} {it.unit || ''}</td>
-                    <td style={{ padding: '10px 6px' }}><span style={pill(isLow ? 'low' : 'ok')}>{isLow ? 'Low' : 'OK'}</span></td>
+                    <td style={{ padding: '10px 6px' }}>
+                      <span style={pill(isEmpty ? 'empty' : (isLow ? 'low' : 'ok'))}>
+                        {isEmpty ? 'Empty! Restock' : (isLow ? 'Low' : 'OK')}
+                      </span>
+                    </td>
                     {userRole === 'admin' && (
                       <>
                         <td style={{ padding: '10px 6px' }}>
