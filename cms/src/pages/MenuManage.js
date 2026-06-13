@@ -46,6 +46,7 @@ export default function MenuManagePage({ apiUrl, token, userRole }) {
   const [modal, setModal] = useState(null); // null | {mode:'create'|'edit', data}
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
 
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -111,15 +112,44 @@ export default function MenuManagePage({ apiUrl, token, userRole }) {
     e.preventDefault();
     setBusy(true);
     const f = e.target;
+    
+    let finalImageUrl = f.image_url.value.trim();
+
+    // --- TAMBAHAN FASE 3: Upload ke backend jika ada file yang diplih ---
+    if (selectedFile) {
+      const formData = new FormData();
+      formData.append('image', selectedFile);
+      try {
+        const uploadRes = await fetch(`${apiUrl}/api/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData.success) {
+          finalImageUrl = uploadData.imageUrl;
+        } else {
+          alert(uploadData.message || 'Upload failed');
+          setBusy(false);
+          return;
+        }
+      } catch (err) {
+        alert('Failed to connect to upload server');
+        setBusy(false);
+        return;
+      }
+    }
+    // 
+
     const payload = {
       category_id: Number(f.category_id.value),
       item_name:   f.item_name.value.trim(),
       description: f.description.value.trim(),
-      image_url:   f.image_url.value.trim(),
+      image_url:   finalImageUrl, // Akan memakai URL hasil upload atau teks bawaan
       price:       Number(f.price.value),
       stock:       Number(f.stock.value || 0),
       is_available: Number(f.is_available.value),
     };
+
     try {
       const isEdit = modal.mode === 'edit';
       const url = isEdit ? `${apiUrl}/api/menu/${modal.data.id}` : `${apiUrl}/api/menu`;
@@ -301,10 +331,16 @@ export default function MenuManagePage({ apiUrl, token, userRole }) {
               Description
               <textarea data-testid="menu-form-description" name="description" defaultValue={modal.data.description || ''} rows={2} style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical' }} />
             </label>
+            {/* KODE YANG DIUPDATE DI DALAM <form> */}
             <label style={{ fontSize: 12, color: '#666' }}>
-              Image URL
-              <input data-testid="menu-form-image" name="image_url" defaultValue={modal.data.image_url || ''} style={inputStyle} />
+              Image Upload (Optional)
+              <input type="file" accept="image/*" onChange={(e) => setSelectedFile(e.target.files[0])} style={{ ...inputStyle, padding: '6px 10px', background: '#fff' }} />
             </label>
+            <label style={{ fontSize: 12, color: '#666' }}>
+              Or fallback Image URL
+              <input data-testid="menu-form-image" name="image_url" defaultValue={modal.data?.image_url || ''} placeholder="assets/images/nama_file.png" style={inputStyle} />
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}></div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               <label style={{ fontSize: 12, color: '#666' }}>
                 Price (Rp)

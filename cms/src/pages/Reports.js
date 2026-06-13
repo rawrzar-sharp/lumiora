@@ -41,6 +41,29 @@ export default function ReportsPage({ apiUrl, token }) {
     }
   }, [apiUrl, token]);
 
+  // --- TAMBAHAN FASE 3: Fungsi Export to CSV ---
+  const exportToCSV = () => {
+    if (daily.length === 0) return alert("No data to export");
+    
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Date,Revenue (Rp)\n"; 
+    
+    daily.forEach(row => {
+      const date = (row.report_date || '').toString().slice(0, 10);
+      const rev = row.total_sales || 0;
+      csvContent += `${date},${rev}\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Lumiora_Sales_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  // ----------------------------------------------
+
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const dailyMax = Math.max(1, ...daily.map((d) => Number(d.total_sales || 0)));
@@ -57,7 +80,20 @@ export default function ReportsPage({ apiUrl, token }) {
       {loading && <div style={card}>Loading reports…</div>}
 
       {/* DAILY */}
+      {/* KODE BARU */}
       <section style={card} data-testid="reports-daily">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h4 style={{ margin: 0, color: palette.ink, fontSize: 16 }}>Daily Sales</h4>
+            <p style={{ marginTop: 4, fontSize: 12, color: '#888' }}>Up to last 90 days (newest first).</p>
+          </div>
+          <button 
+            onClick={exportToCSV}
+            style={{ background: palette.moss, color: 'white', border: 'none', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}
+          >
+            ↓ Export to CSV
+          </button>
+        </div>
         <h4 style={{ margin: 0, color: palette.ink, fontSize: 16 }}>Daily Sales</h4>
         <p style={{ marginTop: 4, fontSize: 12, color: '#888' }}>Up to last 90 days (newest first).</p>
         {daily.length === 0 ? (

@@ -40,6 +40,37 @@ app.use(express.json());
 const path = require('path');
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
+// --- TAMBAHAN FASE 3: Konfigurasi Multer untuk Upload Gambar ---
+const multer = require('multer');
+const fs = require('fs');
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const dir = path.join(__dirname, 'assets/images');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    // Format nama file: img-timestamp.ext
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'img-' + uniqueSuffix + ext);
+  }
+});
+const upload = multer({ storage: storage });
+
+// Endpoint API untuk menerima file gambar
+app.post('/api/upload', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No file uploaded' });
+  }
+  // Kembalikan path relatif agar mudah dibaca oleh Flutter & CMS
+  res.status(201).json({ success: true, imageUrl: `assets/images/${req.file.filename}` });
+});
+// ---------------------------------------------------------------
+
 app.use((req, res, next) => {
   req.db = pool;
   next();
