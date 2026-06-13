@@ -8,6 +8,7 @@ import 'payment.dart';
 import 'profile.dart';
 import 'history.dart';
 
+// KODE BARU UNTUK main.dart (Bagian Atas)
 class GlobalState {
   static String? userName;
   static bool showRewardPopup = false;
@@ -15,8 +16,10 @@ class GlobalState {
   static bool bannerBonusClaimed = false;
   static int currentCardStamps = 0;
   static int? customerId; // persisted customer id from backend
+  
+  // --- TAMBAHAN FASE 3: Pengontrol Dark Mode ---
+  static final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 }
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,10 +27,14 @@ void main() async {
   // Try to restore persisted user data from SharedPreferences
   try {
     final prefs = await SharedPreferences.getInstance();
+    
+    // --- TAMBAHAN FASE 3: Membaca Tema Terakhir ---
+    final isDark = prefs.getBool('is_dark_mode') ?? false;
+    GlobalState.themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
+
     final stored = prefs.getString('user_data');
     if (stored != null && stored.isNotEmpty) {
       final dynamic decoded = jsonDecode(stored);
-      // Tolerate both new shape (flat) and older { data: {...} } / { user: {...} } shapes.
       final Map<String, dynamic> data = (decoded is Map && decoded['data'] is Map)
           ? Map<String, dynamic>.from(decoded['data'])
           : (decoded is Map && decoded['user'] is Map)
@@ -36,7 +43,6 @@ void main() async {
       GlobalState.userName = data['name'] as String?;
       GlobalState.vouchersCount = (data['vouchers'] is int) ? data['vouchers'] as int : int.tryParse('${data['vouchers']}') ?? 0;
       GlobalState.currentCardStamps = (data['loyalty_stamps'] is int) ? data['loyalty_stamps'] as int : int.tryParse('${data['loyalty_stamps']}') ?? 0;
-      // Prefer the dedicated customer_id when present (newer backend); fall back to id.
       GlobalState.customerId = int.tryParse((data['customer_id'] ?? data['id'] ?? '').toString());
     }
   } catch (e) {
@@ -47,20 +53,40 @@ void main() async {
 }
 
 
+// KODE BARU UNTUK MyApp
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Lumiora Home',
-      theme: ThemeData(
-        fontFamily: 'Sans-Serif',
-        scaffoldBackgroundColor: const Color(0xFFEBE5D9),
-        primaryColor: const Color(0xFF7B8C2A),
-      ),
-      home: const SplashScreen(), 
+    // --- TAMBAHAN FASE 3: Listener Tema ---
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: GlobalState.themeNotifier,
+      builder: (_, ThemeMode currentMode, __) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Lumiora Home',
+          themeMode: currentMode, // Terapkan tema saat ini
+          theme: ThemeData(
+            brightness: Brightness.light,
+            fontFamily: 'Sans-Serif',
+            scaffoldBackgroundColor: const Color(0xFFEBE5D9),
+            primaryColor: const Color(0xFF7B8C2A),
+          ),
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+            fontFamily: 'Sans-Serif',
+            scaffoldBackgroundColor: const Color(0xFF121212), // Warna background gelap
+            primaryColor: const Color(0xFF7B8C2A),
+            cardColor: const Color(0xFF1E1E1E),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Color(0xFF121212),
+              foregroundColor: Colors.white,
+            ),
+          ),
+          home: const SplashScreen(), 
+        );
+      },
     );
   }
 }
